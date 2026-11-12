@@ -1,0 +1,49 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Brand: royal navy + Egyptian gold (from the logo). Token names kept so no component needs renaming:
+     nile = gold accent (text/borders), nile-dark = primary button fill (navy in light, gold in dark). */
+  --c-ink: 11 27 58;        /* royal navy */
+  --c-paper: 250 247 240;   /* warm cream */
+  --c-surface: 255 255 255;
+  --c-line: 226 219 203;
+  --c-mute: 90 98 120;
+  --c-nile: 138 99 8;       /* deep gold, AA on white/cream */
+  --c-nile-dark: 11 27 58;  /* navy button fill */
+  --c-sand: 138 99 8;       /* badges */
+  --c-danger: 178 42 42;
+}
+.dark {
+  --c-ink: 240 235 220;
+  --c-paper: 8 18 40;       /* midnight navy */
+  --c-surface: 14 29 58;
+  --c-line: 36 54 92;
+  --c-mute: 156 168 192;
+  --c-nile: 226 184 78;     /* bright gold */
+  --c-nile-dark: 212 165 55; /* gold button fill (navy text) */
+  --c-sand: 226 184 78;
+  --c-danger: 232 96 96;
+}
+
+@layer base {
+  html { font-family: 'IBM Plex Sans Arabic', Tahoma, sans-serif; }
+  body { @apply bg-paper text-ink antialiased; line-height: 1.8; }
+  h1, h2, h3 { font-family: 'Reem Kufi', Tahoma, sans-serif; line-height: 1.4; }
+  :focus-visible { outline: 3px solid rgb(var(--c-nile)); outline-offset: 2px; border-radius: 6px; }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
+}
+
+@layer components {
+  .field { @apply w-full rounded-field border border-line bg-surface px-3 py-2.5 text-ink placeholder:text-mute focus:border-nile; }
+  .label { @apply mb-1 block text-sm font-medium; }
+  .btn { @apply inline-flex items-center justify-center gap-2 rounded-field px-4 py-2.5 font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50; }
+  .btn-primary { @apply btn bg-nile-dark text-white hover:bg-nile hover:text-paper dark:text-paper; }
+  .btn-ghost { @apply btn border border-line bg-surface hover:border-nile; }
+  .btn-danger { @apply btn bg-danger text-white dark:text-paper; }
+  .panel { @apply rounded-panel border border-line bg-surface; }
+  .chip { @apply inline-flex items-center rounded-full border border-line px-2.5 py-0.5 text-xs text-mute; }
+}
+
+.leaflet-container { font-family: inherit; direction: ltr; }
