@@ -5,4 +5,4 @@
  */
 export const BRAND = 'إيجار مصر'
 export const BRAND_EN = 'Ejar Masr'
-export const DEFAULT_SITE_URL = 'https://ejar-masr.pages.dev'
+export const DEFAULT_SITE_URL = 'https://ejar-masr1.pages.dev'
