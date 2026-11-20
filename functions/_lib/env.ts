@@ -15,5 +15,9 @@ export interface Env {
   CRON_SECRET?: string // protects POST /api/sweep (daily job)
   RESEND_API_KEY?: string // transactional email (resend.com free tier)
   EMAIL_FROM?: string // e.g. "إيجار مصر <noreply@your-domain.com>"
+  ANTHROPIC_API_KEY?: string // article writer (Claude): best Arabic quality, pay per use
+  GEMINI_API_KEY?: string // article writer (Google Gemini): has a free tier
+  AI_PROVIDER?: string // 'anthropic' | 'gemini' (default: whichever key is set, Gemini first)
+  AI_MODEL?: string // optional model override
 }
 export const siteUrl = (env: Env): string => env.SITE_URL ?? DEFAULT_SITE_URL
