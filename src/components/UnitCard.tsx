@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
 import { fmtPrice } from '../lib/format'
 import { images } from '../lib/images'
-import { addToCompare, useCompareIds } from '../lib/compare'
+import { toggleCompare, useCompareIds } from '../lib/compare'
 import type { Unit } from '../lib/types'
 import { Badge } from './ui'
 
@@ -36,8 +36,11 @@ export function UnitCard({ unit }: { unit: Unit }) {
             type="button" className="btn-ghost !px-3 !py-1.5 text-sm" aria-pressed={fav}
             onClick={() => { if (!user) { toast.err(ar.auth.loginRequired); return } toggleFavorite(unit.id).catch(() => toast.err(ar.errors.generic)) }}
           >{fav ? '♥' : '♡'} <span className="sr-only">{fav ? ar.unit.unfavorite : ar.unit.favorite}</span></button>
-          <button type="button" className="btn-ghost !px-3 !py-1.5 text-sm" onClick={() => { const r = addToCompare(unit.id); toast[r === 'full' ? 'err' : 'ok'](r === 'full' ? ar.compare.max : ar.unit.inCompare) }}>
-            {compare.includes(unit.id) ? ar.unit.inCompare : ar.unit.compare}
+          <button
+            type="button" className="btn-ghost !px-3 !py-1.5 text-sm" aria-pressed={compare.includes(unit.id)}
+            onClick={() => { const r = toggleCompare(unit.id); if (r === 'full') toast.err(ar.compare.max); else toast.ok(r === 'added' ? ar.unit.addedCompare : ar.unit.removedCompare) }}
+          >
+            {compare.includes(unit.id) ? `✕ ${ar.unit.removeCompare}` : ar.unit.compare}
           </button>
         </div>
       </div>

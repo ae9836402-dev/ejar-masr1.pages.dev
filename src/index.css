@@ -3,6 +3,7 @@
 @tailwind utilities;
 
 :root {
+  --c-logo: 11 27 58;
   /* Brand: royal navy + Egyptian gold (from the logo). Token names kept so no component needs renaming:
      nile = gold accent (text/borders), nile-dark = primary button fill (navy in light, gold in dark). */
   --c-ink: 11 27 58;        /* royal navy */
@@ -16,15 +17,16 @@
   --c-danger: 178 42 42;
 }
 .dark {
-  --c-ink: 240 235 220;
-  --c-paper: 8 18 40;       /* midnight navy */
-  --c-surface: 14 29 58;
-  --c-line: 36 54 92;
-  --c-mute: 156 168 192;
+  --c-ink: 240 237 230;
+  --c-paper: 15 15 16;       /* near-black charcoal (neutral, not blue) */
+  --c-surface: 26 26 28;
+  --c-line: 58 58 63;
+  --c-mute: 165 165 173;
   --c-nile: 226 184 78;     /* bright gold */
-  --c-nile-dark: 212 165 55; /* gold button fill (navy text) */
+  --c-nile-dark: 212 165 55; /* gold button fill (dark text) */
   --c-sand: 226 184 78;
-  --c-danger: 232 96 96;
+  --c-danger: 240 110 110;
+  --c-logo: 20 20 22;       /* the logo disc follows the theme instead of staying navy */
 }
 
 @layer base {
@@ -47,3 +49,16 @@
 }
 
 .leaflet-container { font-family: inherit; direction: ltr; }
+
+/* ---- map: price tags, cluster bubbles and the listing popup (theme-aware) ---- */
+.map-pin { background: transparent; border: 0; }
+.map-pill, .map-cluster { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); font: 600 12px Tahoma, sans-serif; white-space: nowrap; box-shadow: 0 1px 5px rgba(0, 0, 0, .4); }
+.map-pill { background: rgb(var(--c-logo)); color: #F4D98A; border: 2px solid #D4A537; border-radius: 999px; padding: 2px 8px; }
+.map-cluster { display: flex; align-items: center; justify-content: center; min-width: 38px; height: 38px; padding: 0 6px; border-radius: 999px; font-size: 14px; background: rgb(var(--c-nile-dark)); color: #fff; border: 3px solid #D4A537; }
+.dark .map-cluster { color: rgb(var(--c-paper)); }
+.leaflet-marker-icon:focus-visible .map-pill, .leaflet-marker-icon:focus-visible .map-cluster { outline: 3px solid #fff; outline-offset: 2px; }
+.leaflet-popup-content { margin: 10px 12px; color: #14161d; font-family: inherit; }
+.map-popup { display: flex; flex-direction: column; gap: 4px; direction: rtl; text-align: start; font-size: 14px; }
+.map-popup img { width: 100%; height: 110px; object-fit: cover; border-radius: 6px; }
+.map-popup-price { font-weight: 700; color: #8A6308; }
+.map-popup a { color: #0B1B3A; font-weight: 600; text-decoration: underline; }

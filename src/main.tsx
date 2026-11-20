@@ -6,6 +6,9 @@ import { AuthProvider } from './contexts/AuthContext'
 import { SettingsProvider } from './contexts/SettingsContext'
 import { ToastProvider } from './contexts/ToastContext'
 import './index.css'
+import { syncThemeColor } from './lib/theme'
+
+syncThemeColor() // the inline script in index.html already set the dark class; make the phone's browser bar match it too
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

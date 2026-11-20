@@ -3,7 +3,7 @@ import { BRAND } from '../lib/brand'
 
 export const ar = {
   brand: BRAND,
-  nav: { home: 'الرئيسية', search: 'ابحث عن وحدة', add: 'أضف وحدتك', login: 'دخول', account: 'حسابي', dashboard: 'لوحة المعلن', admin: 'لوحة الأدمن', logout: 'خروج', compare: 'المقارنة', menu: 'القائمة', rentals: 'إيجاراتي' },
+  nav: { home: 'الرئيسية', search: 'ابحث عن وحدة', add: 'أضف وحدتك', login: 'دخول', account: 'حسابي', dashboard: 'لوحة المعلن', admin: 'لوحة الأدمن', logout: 'خروج', compare: 'المقارنة', menu: 'القائمة', rentals: 'إيجاراتي', blog: 'المدونة', adminArticles: 'المقالات' },
   theme: { toDark: 'تفعيل الوضع الداكن', toLight: 'تفعيل الوضع الفاتح' },
   common: { loading: 'جاري التحميل…', retry: 'حاول تاني', save: 'حفظ', cancel: 'إلغاء', delete: 'حذف', edit: 'تعديل', back: 'رجوع', more: 'عرض المزيد', all: 'الكل', none: 'بدون', yes: 'نعم', no: 'لا', close: 'إغلاق', confirm: 'تأكيد', search: 'بحث', currency: 'جنيه', empty: 'مفيش حاجة هنا لسه', required: 'الحقل ده مطلوب' },
   errors: {
@@ -61,7 +61,7 @@ export const ar = {
     validUntil: 'ساري حتى', expired: 'انتهت مدة الإعلان', expiredPublic: 'الإعلان ده لم يعد متاحًا.', rented: 'الوحدة اتأجرت', hidden: 'الإعلان مخفي', removed: 'الإعلان اتحذف',
     broker: 'سمسار', verified: 'موثّق', owner: 'مالك', description: 'الوصف', amenities: 'المرافق', location: 'الموقع', address: 'العنوان',
     reveal: 'عرض بيانات التواصل', revealing: 'جاري الكشف…', loginToReveal: 'سجّل دخولك عشان تشوف بيانات التواصل', call: 'اتصل', whatsapp: 'واتساب', remaining: 'المتبقي من حدك اليومي:',
-    limitReached: 'وصلت للحد اليومي لكشف بيانات التواصل. جرّب بكرة.', favorite: 'أضف للمفضلة', unfavorite: 'شيل من المفضلة', share: 'مشاركة', shareWa: 'مشاركة على واتساب', compare: 'قارن', inCompare: 'في المقارنة', report: 'بلّغ عن الإعلان',
+    limitReached: 'وصلت للحد اليومي لكشف بيانات التواصل. جرّب بكرة.', favorite: 'أضف للمفضلة', unfavorite: 'شيل من المفضلة', share: 'مشاركة', shareWa: 'مشاركة على واتساب', compare: 'قارن', inCompare: 'في المقارنة', removeCompare: 'شيل من المقارنة', addedCompare: 'اتضافت للمقارنة', removedCompare: 'اتشالت من المقارنة', report: 'بلّغ عن الإعلان',
     safetyHint: 'متدفعش أي مبلغ قبل المعاينة والتأكد من العقد.', similar: 'وحدات مشابهة', views: 'مشاهدة', copied: 'اتنسخ الرابط', noMap: 'المعلن ماحطش دبوس على الخريطة',
   },
   report: { title: 'بلّغ عن الإعلان', reason: 'السبب', note: 'ملاحظات (اختياري)', send: 'إرسال البلاغ', sent: 'وصلنا بلاغك، شكرًا.', exists: 'انت بلّغت عن الإعلان ده قبل كده.', login: 'سجّل دخولك عشان تبلّغ' },
@@ -91,7 +91,7 @@ export const ar = {
     errTitle: 'العنوان لازم يكون بين ٥ و١٢٠ حرف.', errPrice: 'اكتب سعر صحيح.', errImages: 'عدد الصور لازم يكون بين', errPhone: 'اكتب رقم تليفون صحيح.', errGov: 'اختار المحافظة والمركز.', errType: 'اختار نوع الوحدة.',
     expiryInfo: 'مدة الإعلان:', noExpiry: 'بدون انتهاء تلقائي', days: 'يوم من النشر', blocked: 'حسابك محظور ومش هتقدر تنشر.',
   },
-  compare: { title: 'مقارنة الوحدات', empty: 'ضيف وحدتين أو تلاتة للمقارنة من صفحة البحث أو التفاصيل.', max: 'تقدر تقارن لحد ٣ وحدات.', remove: 'شيل', row: { price: 'السعر', type: 'النوع', location: 'الموقع', rooms: 'الغرف', baths: 'الحمامات', size: 'المساحة', floor: 'الدور', furnished: 'التأثيث', deposit: 'التأمين', amenities: 'المرافق', by: 'المعلن' } },
+  compare: { title: 'مقارنة الوحدات', empty: 'ضيف وحدتين أو تلاتة للمقارنة من صفحة البحث أو التفاصيل.', max: 'تقدر تقارن لحد ٣ وحدات.', remove: 'شيل من المقارنة', clear: 'مسح الكل', cleared: 'اتمسحت المقارنة', goneNote: 'شيلنا وحدات اتحذفت أو مبقتش موجودة.', partialNote: 'في وحدات مقدرناش نحمّلها دلوقتي. تقدر تمسح الكل وتبدأ من جديد.', unavailable: 'الإعلان ده مش متاح دلوقتي', count: (n: number) => `${n} من ${3} وحدات`, row: { price: 'السعر', type: 'النوع', location: 'الموقع', rooms: 'الغرف', baths: 'الحمامات', size: 'المساحة', floor: 'الدور', furnished: 'التأثيث', deposit: 'التأمين', amenities: 'المرافق', by: 'المعلن' } },
   landing: {
     titleGov: (g: string) => `وحدات للإيجار في ${g}`, titleType: (t: string, g: string) => `${t} للإيجار في ${g}`,
     intro: (g: string) => `تصفح وحدات الإيجار المتاحة في محافظة ${g} من ملّاك وسماسرة مباشرة، وفلتر حسب المركز والسعر والمرافق.`,
@@ -117,7 +117,7 @@ export const ar = {
     contact: { title: 'تواصل معنا', body: ['للاستفسارات أو طلبات حذف الحساب أو الإبلاغ عن مشكلة، ابعت رسالتنا على البريد التالي.'], emailPlaceholder: 'ضيف بريد التواصل في ملف src/i18n/ar.ts (contactEmail)', },
   },
   contactEmail: '',
-  footer: { rights: BRAND, about: 'من نحن', terms: 'الشروط', privacy: 'الخصوصية', safety: 'نصايح أمان', contact: 'تواصل معنا', disclaimer: 'الموقع وسيط عرض وتحصيل للإيجار. عقد الإيجار نفسه بين المالك والمستأجر.' },
+  footer: { rights: BRAND, about: 'من نحن', terms: 'الشروط', privacy: 'الخصوصية', safety: 'نصايح أمان', contact: 'تواصل معنا', blog: 'المدونة', disclaimer: 'الموقع وسيط عرض وتحصيل للإيجار. عقد الإيجار نفسه بين المالك والمستأجر.' },
   notFound: { title: 'الصفحة مش موجودة', text: 'الرابط ده غلط أو اتشال.', home: 'ارجع للرئيسية' },
 } as const
 
