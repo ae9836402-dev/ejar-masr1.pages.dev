@@ -39,6 +39,13 @@ describe('callLLM', () => {
     expect((calls[0].init?.headers as Record<string, string>)['x-goog-api-key']).toBe('AIza-secret')
     expect(calls[0].body).toMatchObject({ generationConfig: { responseMimeType: 'application/json', maxOutputTokens: 50, temperature: 0.5 }, systemInstruction: { parts: [{ text: 'S' }] } })
   })
+  it('tells the admin WHY the provider refused (status + reason) without ever echoing the key', async () => {
+    const orig = console.error; console.error = () => {}
+    stubFetch(() => new Response(JSON.stringify({ error: { status: 'RESOURCE_EXHAUSTED', message: 'Quota exceeded for key AIza-secret' } }), { status: 429 }))
+    const e = (await callLLM(env({ GEMINI_API_KEY: 'AIza-secret' }), { system: '', user: '', maxTokens: 1 }).catch((x: unknown) => x)) as Error
+    console.error = orig
+    expect(e.message).toContain('429'); expect(e.message).toContain('RESOURCE_EXHAUSTED'); expect(e.message).not.toContain('AIza-secret')
+  })
   it('maps failures to clean errors that never contain the key or the provider body', async () => {
     const orig = console.error; console.error = () => {}
     for (const [res, code] of [[new Response('{"error":"bad key AIza-secret"}', { status: 401 }), 'ai'], [new Response(JSON.stringify({ candidates: [] }), { status: 200 }), 'ai-empty']] as const) {

@@ -28,7 +28,17 @@ export async function callLLM(env: Env, o: { system: string; user: string; maxTo
     const res = p.provider === 'anthropic'
       ? await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', signal: ctl.signal, headers: { 'Content-Type': 'application/json', 'x-api-key': p.key, 'anthropic-version': '2023-06-01' }, body: JSON.stringify({ model: p.model, max_tokens: o.maxTokens, temperature: o.temperature ?? 0.8, system: o.system, messages: [{ role: 'user', content: o.user }] }) })
       : await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(p.model)}:generateContent`, { method: 'POST', signal: ctl.signal, headers: { 'Content-Type': 'application/json', 'x-goog-api-key': p.key }, body: JSON.stringify({ systemInstruction: { parts: [{ text: o.system }] }, contents: [{ role: 'user', parts: [{ text: o.user }] }], generationConfig: { temperature: o.temperature ?? 0.8, maxOutputTokens: o.maxTokens, responseMimeType: 'application/json' } }) })
-    if (!res.ok) { console.error('ai provider error', p.provider, res.status); throw new HttpError(502, 'ai', `مزوّد الـ AI رجّع خطأ (${res.status}). راجع المفتاح والحصة`) }
+    if (!res.ok) {
+      console.error('ai provider error', p.provider, res.status)
+      // Admin-only endpoints: show the provider's own short reason (e.g. API_KEY_INVALID, RESOURCE_EXHAUSTED, model not found) so a setup mistake is diagnosable. The key itself is always redacted.
+      let why = ''
+      try {
+        const j = (await res.json()) as { error?: { status?: string; type?: string; message?: string } | string }
+        const e = typeof j.error === 'object' && j.error ? j.error : null
+        why = [e?.status ?? e?.type, e?.message].filter(Boolean).join(': ').split(p.key).join('***').replace(/\s+/g, ' ').slice(0, 200)
+      } catch { /* no readable body */ }
+      throw new HttpError(502, 'ai', `مزوّد الـ AI رجّع خطأ (${res.status})${why ? `: ${why}` : ''}`)
+    }
     const j = (await res.json()) as Record<string, unknown>
     const text = p.provider === 'anthropic'
       ? ((j.content as { type?: string; text?: string }[] | undefined) ?? []).filter((c) => c.type === 'text').map((c) => c.text ?? '').join('')
