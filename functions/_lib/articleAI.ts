@@ -13,7 +13,7 @@ export function pickProvider(env: Env): ProviderInfo | null {
   const gem = env.GEMINI_API_KEY; const ant = env.ANTHROPIC_API_KEY
   const provider: Provider | null = want === 'anthropic' && ant ? 'anthropic' : want === 'gemini' && gem ? 'gemini' : gem ? 'gemini' : ant ? 'anthropic' : null
   if (!provider) return null
-  return provider === 'gemini' ? { provider, model: env.AI_MODEL || 'gemini-2.5-flash', key: gem as string } : { provider, model: env.AI_MODEL || 'claude-sonnet-5-5', key: ant as string }
+  return provider === 'gemini' ? { provider, model: env.AI_MODEL || 'gemini-3.8-flash', key: gem as string } : { provider, model: env.AI_MODEL || 'claude-sonnet-5-5', key: ant as string }
 }
 
 const TIMEOUT_MS = 85_000 // Cloudflare closes a request after ~100 s
@@ -22,6 +22,7 @@ const TIMEOUT_MS = 85_000 // Cloudflare closes a request after ~100 s
 export async function callLLM(env: Env, o: { system: string; user: string; maxTokens: number; temperature?: number }): Promise<string> {
   const p = pickProvider(env)
   if (!p) throw new HttpError(503, 'ai-not-configured', 'مفيش مفتاح AI مضبوط. ضيف GEMINI_API_KEY أو ANTHROPIC_API_KEY في Cloudflare')
+  const started = Date.now()
   const ctl = new AbortController()
   const timer = setTimeout(() => ctl.abort(), TIMEOUT_MS)
   try {
@@ -47,7 +48,10 @@ export async function callLLM(env: Env, o: { system: string; user: string; maxTo
     return text
   } catch (e) {
     if (e instanceof HttpError) throw e
-    throw new HttpError(504, 'ai-timeout', 'مزوّد الـ AI اتأخر أو الاتصال فشل. جرّب تاني')
+    const err = e as { name?: string; message?: string }
+    console.error('ai call failed', p.provider, p.model, err.name, err.message)
+    if (err.name === 'AbortError') throw new HttpError(504, 'ai-timeout', `مزوّد الـ AI (${p.model}) ما ردّش خلال ${Math.round((Date.now() - started) / 1000)} ثانية. جرّب موديل أسرع بإضافة AI_MODEL في Cloudflare`)
+    throw new HttpError(504, 'ai-network', `فشل الاتصال بمزوّد الـ AI أو قراءة رده (${err.name ?? 'Error'}: ${String(err.message ?? '').split(p.key).join('***').slice(0, 120)})`)
   } finally { clearTimeout(timer) }
 }
 

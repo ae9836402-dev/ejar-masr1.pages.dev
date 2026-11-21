@@ -54,7 +54,7 @@ describe('callLLM', () => {
       expect((e as { code: string }).code).toBe(code); expect(String((e as Error).message)).not.toContain('AIza-secret')
     }
     vi.stubGlobal('fetch', async () => { throw new Error('network down') })
-    expect(((await callLLM(env({ GEMINI_API_KEY: 'k' }), { system: '', user: '', maxTokens: 1 }).catch((x: unknown) => x)) as { code: string }).code).toBe('ai-timeout')
+    expect(((await callLLM(env({ GEMINI_API_KEY: 'k' }), { system: '', user: '', maxTokens: 1 }).catch((x: unknown) => x)) as { code: string }).code).toBe('ai-network')
     console.error = orig
   })
   it('refuses cleanly when no key is configured', async () => {
