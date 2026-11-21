@@ -65,6 +65,15 @@ describe('writeArticle', () => {
     expect(r.article.source).toBe('ai')
     expect((await readArticle(env(), r.article.slug))?.title).toContain(PRIMARY)
   })
+  it('adds the missing internal links by code, and trims an over-long description', async () => {
+    const long = JSON.parse(fakeAnswer(PRIMARY)) as { description: string }
+    long.description = `${PRIMARY} `.repeat(30)
+    callLLM.mockResolvedValue(JSON.stringify({ ...JSON.parse(fakeAnswer(PRIMARY)), description: long.description }))
+    const r = await write()
+    expect(r.article.body).toContain('](/search)')
+    expect(r.article.issues.join(' ')).not.toContain('روابط داخلية')
+    expect(r.article.description.length).toBeLessThanOrEqual(165)
+  })
   it('a second article on the same phrase gets its own link instead of overwriting', async () => {
     callLLM.mockResolvedValue(fakeAnswer(PRIMARY))
     const a = await write(); const b = await write()

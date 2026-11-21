@@ -80,6 +80,22 @@ function listingImages(snap: Snapshot | null, govId: string, typeId: string) {
   return units.slice(0, 3).map((u) => ({ id: String((u.data.images as unknown[])[0]), alt: `${String(u.data.typeName ?? 'وحدة')} للإيجار في ${String(u.data.areaName ?? '')} - ${String(u.data.governorateName ?? '')}`.replace(/\s+-\s*$/, ''), href: `/unit/${u.id}` }))
 }
 
+/** Models often skip the required internal links; the quality gate needs at least two. Added by code, so it never depends on the model. */
+export function ensureInternalLinks(body: string, links: { path: string; hint: string }[]): string {
+  const have = [...body.matchAll(/\]\((\/[^)\s]*)\)/g)].length
+  if (have >= 2) return body
+  const extra = links.filter((l) => !body.includes(`](${l.path})`)).slice(0, 3)
+  if (!extra.length) return body
+  return `${body.trimEnd()}\n\n## روابط تفيدك في بحثك\n\n${extra.map((l) => `- [${l.hint}](${l.path})`).join('\n')}\n`
+}
+/** Search results cut descriptions around 160 characters: trim a long one at a word boundary instead of letting it be penalised. */
+export function fitDescription(d: string): string {
+  const s = d.replace(/\s+/g, ' ').trim()
+  if (s.length <= 165) return s
+  const cut = s.slice(0, 160)
+  return `${cut.slice(0, Math.max(100, cut.lastIndexOf(' '))).replace(/[\s،,.:؛-]+$/, '')}…`
+}
+
 export async function writeArticle(env: Env, p: WriteParams): Promise<WriteResult> {
   const prov = pickProvider(env)
   if (!prov) throw new HttpError(503, 'ai-not-configured', 'مفيش مفتاح AI مضبوط')
@@ -96,11 +112,12 @@ export async function writeArticle(env: Env, p: WriteParams): Promise<WriteResul
   const photos = listingImages(snap, p.govId, p.typeId)
   const cover = photos[0] ?? null
   const bodyImages = photos.slice(1)
-  const body = autoPlaceImages(written.body, bodyImages.length)
+  const body = ensureInternalLinks(autoPlaceImages(written.body, bodyImages.length), defaultLinks(g?.slug, g?.name, p.typeId || undefined, typeLabel || undefined))
+  const description = fitDescription(written.description)
   const taken = async (x: string) => dir.entries.some((e) => e.slug === x)
   const firstChoice = arabicSlug(p.item.primary) // the words people search for
   const slug = firstChoice && !(await taken(firstChoice)) ? firstChoice : await uniqueSlug(arabicSlug(written.title) || firstChoice, taken) // then the title, then -2, -3
-  const quality = analyzeArticle({ title: written.title, description: written.description, slug, body, primary: p.item.primary, secondary: p.item.secondary, faq: written.faq, images: [...(cover ? [cover] : []), ...bodyImages] })
+  const quality = analyzeArticle({ title: written.title, description, slug, body, primary: p.item.primary, secondary: p.item.secondary, faq: written.faq, images: [...(cover ? [cover] : []), ...bodyImages] })
   const sig = minhash(body)
   const near = dir.entries.filter((e) => e.slug !== slug).map((e) => ({ slug: e.slug, score: Math.round(sigSimilarity(sig, e.sig) * 100) / 100 })).sort((a, b) => b.score - a.score)[0]
   const similarTo = near && near.score >= 0.2 ? near : null
@@ -112,7 +129,7 @@ export async function writeArticle(env: Env, p: WriteParams): Promise<WriteResul
   if (quality.stats.banned.length) why.push('فيه عبارات تبان مكتوبة آليًا')
   const published = p.autoPublish && why.length === 0
   const article: ArticleDoc = {
-    slug, title: written.title, description: written.description, body, primary: p.item.primary, secondary: p.item.secondary, faq: written.faq, cover, images: bodyImages, videoId: null, videoTitle: '',
+    slug, title: written.title, description, body, primary: p.item.primary, secondary: p.item.secondary, faq: written.faq, cover, images: bodyImages, videoId: null, videoTitle: '',
     status: published ? 'published' : 'draft', source: 'ai', topic: p.topic, angle: p.item.angle, govId: p.govId, typeId: p.typeId, publishAt: null, publishedAt: published ? p.now : null,
     createdAt: p.now, updatedAt: p.now, score: quality.score, issues, similarTo, ai: { provider: prov.provider, model: prov.model },
   }
