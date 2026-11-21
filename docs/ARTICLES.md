@@ -14,6 +14,7 @@
    - `GEMINI_API_KEY` (فيه مستوى مجاني من Google AI Studio)، أو
    - `ANTHROPIC_API_KEY` (جودة عربي أعلى، تكلفة بسيطة لكل مقال).
    - اختياري: `AI_PROVIDER` (`gemini` أو `anthropic`) و`AI_MODEL`.
+   - **لو ظهر خطأ `NOT_FOUND ... model is no longer available`:** أسماء موديلات Gemini بتتغيّر وبتتوقف. ضيف `AI_MODEL` في Cloudflare بالاسم اللي الرسالة بتقترحه (من غير ما تعدّل كود) واعمل Redeploy.
 2. **`CRON_SECRET`** موجود أصلًا (نفس سر المهمة اليومية). ما تحتاج غيره.
 3. **أسرار GitHub** (Settings ← Secrets ← Actions): `SITE_URL` و`CRON_SECRET` (موجودين لو شغّلت `daily-sweep`).
 4. ارفع المشروع. افتح `/admin/articles` (لازم تكون أدمن).
