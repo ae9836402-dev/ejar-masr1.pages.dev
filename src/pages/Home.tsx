@@ -9,8 +9,11 @@ import { latestUnits } from '../lib/units'
 import { fmtNum } from '../lib/format'
 import { isQuotaError } from '../lib/errors'
 import type { Unit } from '../lib/types'
+import { images } from '../lib/images'
 import { UnitCard } from '../components/UnitCard'
 import { Empty, ErrorBox, Field, Spinner } from '../components/ui'
+
+interface BlogTeaser { slug: string; title: string; description: string; cover: string; coverAlt: string }
 
 const POPULAR = ['القاهرة', 'الجيزة', 'الإسكندرية', 'الدقهلية', 'الشرقية', 'المنوفية', 'الغربية', 'أسيوط', 'سوهاج', 'جنوب سيناء', 'البحر الأحمر', 'الأقصر']
 
@@ -25,6 +28,14 @@ export default function Home() {
   const [err, setErr] = useState<unknown>(null)
   const [count, setCount] = useState<number | null>(null)
   const [tab, setTab] = useState<'client' | 'adv'>('client')
+  const [posts, setPosts] = useState<BlogTeaser[]>([])
+
+  useEffect(() => { // latest articles for internal linking; any failure just means no strip
+    if (typeof fetch !== 'function') return
+    let alive = true
+    fetch('/api/blog-latest').then((r) => (r.ok ? r.json() : { articles: [] })).then((d: { articles?: BlogTeaser[] }) => { if (alive && Array.isArray(d.articles)) setPosts(d.articles) }).catch(() => undefined)
+    return () => { alive = false }
+  }, [])
 
   useEffect(() => {
     let alive = true
@@ -142,6 +153,25 @@ export default function Home() {
             </dl>
             <p className="mt-3 text-xs text-mute">{ar.home.statsAsOf}</p>
           </div>
+        </section>
+      )}
+
+      {posts.length > 0 && (
+        <section className="mx-auto max-w-6xl px-4 pb-14">
+          <div className="flex items-end justify-between">
+            <h2 className="font-display text-2xl">{ar.home.blogTitle}</h2>
+            <a href="/blog" className="text-nile underline">{ar.home.blogAll}</a>
+          </div>
+          <ul className="mt-6 grid gap-5 sm:grid-cols-3">
+            {posts.map((p) => (
+              <li key={p.slug} className="panel overflow-hidden">
+                <a href={`/blog/${encodeURIComponent(p.slug)}`} className="block">
+                  {p.cover && <img src={images.url(p.cover, { w: 400, h: 250 })} alt={p.coverAlt || p.title} width={400} height={250} loading="lazy" className="aspect-[8/5] w-full object-cover" />}
+                  <div className="p-4"><h3 className="font-display text-lg">{p.title}</h3><p className="mt-1 text-sm text-mute">{p.description.slice(0, 110)}</p></div>
+                </a>
+              </li>
+            ))}
+          </ul>
         </section>
       )}
 
