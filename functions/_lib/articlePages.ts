@@ -86,7 +86,7 @@ ${cover ? `<figure class="cover"><img src="${escapeHtml(coverUrl as string)}" sr
 ${toc.length >= 3 ? `<nav class="toc" aria-label="محتوى المقال"><strong>في المقال</strong><ol>${toc.map((h) => `<li><a href="#${escapeHtml(h.id)}">${escapeHtml(h.text)}</a></li>`).join('')}</ol></nav>` : ''}
 ${html}
 ${a.faq.length ? `<section aria-labelledby="faq"><h2 id="faq">أسئلة شائعة</h2>${a.faq.map((f) => `<details><summary>${escapeHtml(f.q)}</summary><p>${escapeHtml(f.a)}</p></details>`).join('')}</section>` : ''}
-<aside class="cta"><p><strong>بتدور على وحدة للإيجار${g ? ` في ${escapeHtml(g.name)}` : ''}؟</strong></p><p>شوف الوحدات المتاحة دلوقتي وتواصل مع المالك مباشرة: <a href="${g ? `/rent/${escapeHtml(g.slug)}` : '/search'}">${g ? `وحدات للإيجار في ${escapeHtml(g.name)}` : 'ابحث عن وحدتك'}</a></p></aside>
+<aside class="cta"><p><strong>بتدور على وحدة للإيجار${g ? ` في ${escapeHtml(g.name)}` : ''}؟</strong></p><p>شوف الوحدات المتاحة دلوقتي وتواصل مع المالك مباشرة: <a href="${g ? `/rent/${escapeHtml(g.slug)}` : '/search'}">${g ? `وحدات للإيجار في ${escapeHtml(g.name)}` : 'ابحث عن وحدتك'}</a></p><p>موقعنا: <a href="${escapeHtml(base)}/">${escapeHtml(base.replace(/^https?:\/\//, '').replace(/\/.*$/, ''))}</a></p></aside>
 </article>
 ${rel.listings.length ? `<section><h2>وحدات متاحة دلوقتي</h2><div class="grid">${rel.listings.map(listingCard).join('')}</div></section>` : ''}
 ${rel.articles.length ? `<section><h2>مقالات ممكن تفيدك</h2><div class="grid">${rel.articles.map((e) => articleCard(env, e)).join('')}</div></section>` : ''}`

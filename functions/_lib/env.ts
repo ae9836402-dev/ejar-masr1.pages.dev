@@ -20,6 +20,8 @@ export interface Env {
   AI_PROVIDER?: string // 'anthropic' | 'gemini' (default: whichever key is set, Gemini first)
   AI_MODEL?: string
   /** Optional, Gemini only: how much the model may "think" before answering. A level name (minimal | low | medium | high) or a token budget number (0 = off). Unset = the model's own default. */
-  AI_THINKING?: string // optional model override
+  AI_THINKING?: string
+  /** Optional: seconds to wait for the AI to write one article (default 85, allowed 30-280). Raise it for slower, higher-quality models. */
+  AI_TIMEOUT_SECONDS?: string // optional model override
 }
 export const siteUrl = (env: Env): string => env.SITE_URL ?? DEFAULT_SITE_URL
