@@ -118,6 +118,16 @@ describe('the scheduler', () => {
     await tick()
     expect((await loadDirectory(env())).entries.map((e) => e.status)).toEqual(['draft'])
   })
+  it('stops after the last title (one pass) unless loop is on', async () => {
+    seedSettings({ cursor: 1 }) // one topic, already written
+    expect((await tick()).skipped).toBe('all topics are done')
+    expect(callLLM).not.toHaveBeenCalled()
+  })
+  it('starts another lap with loop on', async () => {
+    seedSettings({ cursor: 1, loop: true })
+    callLLM.mockResolvedValue(fakeAnswer(PRIMARY))
+    expect((await tick()).generated).not.toBeNull()
+  })
   it('a failing AI call is reported, saves nothing, and gives the slot back so the next tick retries', async () => {
     seedSettings()
     callLLM.mockResolvedValue('garbage')

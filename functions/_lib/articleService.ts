@@ -11,7 +11,7 @@ import { GOVS } from './seo'
 
 export interface Topic { topic: string; govId: string; typeId: string }
 export interface ArticleSettings {
-  enabled: boolean; mode: 'review' | 'auto'; everyHours: number; dailyMax: number; minScore: number; topics: Topic[]; cursor: number
+  enabled: boolean; mode: 'review' | 'auto'; everyHours: number; dailyMax: number; minScore: number; topics: Topic[]; cursor: number; loop: boolean
   lastRunAt: number | null; lastResult: string; lastError: string; dayKey: string; todayCount: number
 }
 
@@ -28,7 +28,7 @@ export const DEFAULT_TOPICS: Topic[] = [
 const ANGLES = ['دليل للمبتدئين خطوة بخطوة', 'الأخطاء الشائعة وكيف تتجنبها', 'ميزانية واضحة وحسابات عملية', 'أسئلة تسألها قبل ما توقّع', 'مقارنة بين الخيارات المتاحة', 'قصة موقف حقيقي ثم الدروس المستفادة', 'قائمة فحص للمعاينة', 'نصائح للمفاوضة على السعر']
 const AUDIENCES = ['مستأجر جديد', 'عرسان', 'طلاب وموظفين', 'عائلة صغيرة', 'ملاك يفكرون في التأجير']
 
-export const DEFAULT_ARTICLE_SETTINGS: ArticleSettings = { enabled: false, mode: 'review', everyHours: 24, dailyMax: 2, minScore: 80, topics: DEFAULT_TOPICS, cursor: 0, lastRunAt: null, lastResult: '', lastError: '', dayKey: '', todayCount: 0 }
+export const DEFAULT_ARTICLE_SETTINGS: ArticleSettings = { enabled: false, mode: 'review', everyHours: 24, dailyMax: 2, minScore: 80, topics: DEFAULT_TOPICS, cursor: 0, loop: false, lastRunAt: null, lastResult: '', lastError: '', dayKey: '', todayCount: 0 }
 const num = (v: unknown, lo: number, hi: number, d: number): number => { const n = Number(v); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, Math.round(n))) : d }
 
 export function normalizeSettings(d: Record<string, unknown> | undefined): ArticleSettings {
@@ -40,10 +40,10 @@ export function normalizeSettings(d: Record<string, unknown> | undefined): Artic
     const g = typeof o.govId === 'string' && GOVS.some((v) => v.id === o.govId) ? o.govId : ''
     const ty = typeof o.typeId === 'string' && /^[a-z0-9-]{1,30}$/.test(o.typeId) ? o.typeId : ''
     return [{ topic, govId: g, typeId: ty }]
-  }).slice(0, 80)
+  }).slice(0, 300)
   return {
     enabled: x.enabled === true, mode: x.mode === 'auto' ? 'auto' : 'review', everyHours: num(x.everyHours, 1, 168, 24), dailyMax: num(x.dailyMax, 1, 8, 2), minScore: num(x.minScore, 60, 95, 80),
-    topics: topics.length ? topics : DEFAULT_TOPICS, cursor: num(x.cursor, 0, 1_000_000, 0), lastRunAt: x.lastRunAt instanceof Date ? x.lastRunAt.getTime() : null,
+    topics: topics.length ? topics : DEFAULT_TOPICS, cursor: num(x.cursor, 0, 1_000_000, 0), loop: x.loop === true, lastRunAt: x.lastRunAt instanceof Date ? x.lastRunAt.getTime() : null,
     lastResult: String(x.lastResult ?? '').slice(0, 300), lastError: String(x.lastError ?? '').slice(0, 300), dayKey: String(x.dayKey ?? ''), todayCount: num(x.todayCount, 0, 1000, 0),
   }
 }
@@ -147,6 +147,7 @@ export async function runArticleCron(env: Env, now: Date): Promise<CronResult> {
   const today = dayKey(now)
   const todayCount = settings.dayKey === today ? settings.todayCount : 0
   if (todayCount >= settings.dailyMax) { res.skipped = 'daily limit reached'; return res }
+  if (!settings.loop && settings.cursor >= settings.topics.length) { res.skipped = 'all topics are done'; return res } // one pass over the list, then stop (turn on "loop" to start over with new angles)
   if (settings.lastRunAt && now.getTime() - settings.lastRunAt < settings.everyHours * 3600_000 * 0.9) { res.skipped = 'not due yet'; return res }
   // claim this run first (guarded): a second cron tick that overlaps sees a fresh lastRunAt and stops
   const claimed: ArticleSettings = { ...settings, lastRunAt: now.getTime(), dayKey: today, todayCount }
