@@ -16,6 +16,15 @@ export function pickProvider(env: Env): ProviderInfo | null {
   return provider === 'gemini' ? { provider, model: env.AI_MODEL || 'gemini-3.8-flash', key: gem as string } : { provider, model: env.AI_MODEL || 'claude-sonnet-5-5', key: ant as string }
 }
 
+/** Opt-in (AI_THINKING): slow "thinking" models can spend most of the time limit before writing a word. Unset = send nothing extra. */
+function thinkingConfig(env: Env): { thinkingConfig?: Record<string, unknown> } {
+  const v = (env.AI_THINKING ?? '').trim().toLowerCase()
+  if (!v) return {}
+  if (/^\d+$/.test(v)) return { thinkingConfig: { thinkingBudget: Number(v) } }
+  if (['minimal', 'low', 'medium', 'high'].includes(v)) return { thinkingConfig: { thinkingLevel: v } }
+  return {}
+}
+
 const TIMEOUT_MS = 85_000 // Cloudflare closes a request after ~100 s
 
 /** One model call. Returns the model's text. Never exposes the provider's error body or the key. */
@@ -28,7 +37,7 @@ export async function callLLM(env: Env, o: { system: string; user: string; maxTo
   try {
     const res = p.provider === 'anthropic'
       ? await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', signal: ctl.signal, headers: { 'Content-Type': 'application/json', 'x-api-key': p.key, 'anthropic-version': '2023-06-01' }, body: JSON.stringify({ model: p.model, max_tokens: o.maxTokens, temperature: o.temperature ?? 0.8, system: o.system, messages: [{ role: 'user', content: o.user }] }) })
-      : await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(p.model)}:generateContent`, { method: 'POST', signal: ctl.signal, headers: { 'Content-Type': 'application/json', 'x-goog-api-key': p.key }, body: JSON.stringify({ systemInstruction: { parts: [{ text: o.system }] }, contents: [{ role: 'user', parts: [{ text: o.user }] }], generationConfig: { temperature: o.temperature ?? 0.8, maxOutputTokens: o.maxTokens, responseMimeType: 'application/json' } }) })
+      : await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(p.model)}:generateContent`, { method: 'POST', signal: ctl.signal, headers: { 'Content-Type': 'application/json', 'x-goog-api-key': p.key }, body: JSON.stringify({ systemInstruction: { parts: [{ text: o.system }] }, contents: [{ role: 'user', parts: [{ text: o.user }] }], generationConfig: { temperature: o.temperature ?? 0.8, maxOutputTokens: o.maxTokens, responseMimeType: 'application/json', ...thinkingConfig(env) } }) })
     if (!res.ok) {
       console.error('ai provider error', p.provider, res.status)
       // Admin-only endpoints: show the provider's own short reason (e.g. API_KEY_INVALID, RESOURCE_EXHAUSTED, model not found) so a setup mistake is diagnosable. The key itself is always redacted.
