@@ -63,6 +63,11 @@ describe('blog activation', () => {
     expect((await call(admin, w.env, { path: '/api/articles-admin', body: { action: 'list' } })).status).toBe(401)
   })
 
+  it('the AI check tells the admin plainly when no key is configured', async () => {
+    const r = await act('ai-check')
+    expect(r.status).toBe(503)
+  })
+
   it('routes the blog and llms.txt to the Functions, and the CSP lets articles embed YouTube', () => {
     const routes = JSON.parse(readFileSync('public/_routes.json', 'utf8')) as { include: string[] }
     for (const r of ['/blog', '/blog/*', '/llms.txt']) expect(routes.include).toContain(r)

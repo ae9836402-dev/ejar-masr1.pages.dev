@@ -49,7 +49,41 @@ export default function AdminArticles() {
         {tab === 'editor' && <EditorTab key={editing ?? 'new'} slug={editing} onDone={() => setTab('list')} onSaved={(s) => setEditing(s)} />}
         {tab === 'auto' && <AutoTab />}
       </div>
+      <AiCheck />
     </div>
+  )
+}
+
+
+// ---------- AI connection check ----------
+function AiCheck() {
+  const [r, setR] = useState<{ provider: string; model: string; ok: boolean; ms: number; error: string; models: string[] } | null>(null)
+  const [msg, setMsg] = useState('')
+  const [busy, setBusy] = useState(false)
+  async function run() {
+    setBusy(true); setR(null); setMsg('')
+    try { setR(await adm<NonNullable<typeof r>>('ai-check')) } catch (e) { setMsg(errText(e)) } finally { setBusy(false) }
+  }
+  return (
+    <details className="panel mt-8 p-4">
+      <summary className="cursor-pointer font-display">اختبار الاتصال بالذكاء الاصطناعي (لو التوليد بيفشل)</summary>
+      <div className="mt-3 space-y-3 text-sm">
+        <button type="button" className="btn-ghost" disabled={busy} onClick={() => void run()}>{busy ? 'بيختبر (لحد 25 ثانية)…' : 'اختبر الآن'}</button>
+        {msg && <p className="text-danger" role="alert">{msg}</p>}
+        {r && (
+          <div className="space-y-2" aria-live="polite">
+            <p>المزوّد: <b dir="ltr">{r.provider}</b> · الموديل الحالي: <b dir="ltr">{r.model}</b></p>
+            <p className={r.ok ? 'text-nile' : 'text-danger'}>{r.ok ? `اشتغل. زمن الرد ${(r.ms / 1000).toFixed(1)} ثانية` : `فشل بعد ${(r.ms / 1000).toFixed(1)} ثانية: ${r.error}`}</p>
+            {r.models.length > 0 && (
+              <div>
+                <p>الموديلات المتاحة لمفتاحك. اختار واحد وحطه في Cloudflare كمتغير <b dir="ltr">AI_MODEL</b> ثم Redeploy:</p>
+                <p dir="ltr" className="mt-1 max-h-48 overflow-y-auto rounded-field border border-line p-2 text-start font-mono text-xs leading-6">{r.models.join('\n')}</p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </details>
   )
 }
 

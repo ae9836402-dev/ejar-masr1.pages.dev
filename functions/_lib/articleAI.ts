@@ -19,12 +19,12 @@ export function pickProvider(env: Env): ProviderInfo | null {
 const TIMEOUT_MS = 85_000 // Cloudflare closes a request after ~100 s
 
 /** One model call. Returns the model's text. Never exposes the provider's error body or the key. */
-export async function callLLM(env: Env, o: { system: string; user: string; maxTokens: number; temperature?: number }): Promise<string> {
+export async function callLLM(env: Env, o: { system: string; user: string; maxTokens: number; temperature?: number; timeoutMs?: number }): Promise<string> {
   const p = pickProvider(env)
   if (!p) throw new HttpError(503, 'ai-not-configured', 'مفيش مفتاح AI مضبوط. ضيف GEMINI_API_KEY أو ANTHROPIC_API_KEY في Cloudflare')
   const started = Date.now()
   const ctl = new AbortController()
-  const timer = setTimeout(() => ctl.abort(), TIMEOUT_MS)
+  const timer = setTimeout(() => ctl.abort(), o.timeoutMs ?? TIMEOUT_MS)
   try {
     const res = p.provider === 'anthropic'
       ? await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', signal: ctl.signal, headers: { 'Content-Type': 'application/json', 'x-api-key': p.key, 'anthropic-version': '2023-06-01' }, body: JSON.stringify({ model: p.model, max_tokens: o.maxTokens, temperature: o.temperature ?? 0.8, system: o.system, messages: [{ role: 'user', content: o.user }] }) })

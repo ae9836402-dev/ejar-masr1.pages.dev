@@ -2,7 +2,7 @@ import { analyzeArticle, minhash, sigSimilarity } from '../_lib/articleQuality'
 import { arabicSlug, isValidSlug, uniqueSlug, youtubeId, type ArticleImage } from '../_lib/articleText'
 import { deleteArticle, loadDirectory, readArticle, saveArticle, type ArticleDoc, type ArticleStatus } from '../_lib/articleStore'
 import { DEFAULT_ARTICLE_SETTINGS, loadSettings, normalizeSettings } from '../_lib/articleService'
-import { clean } from '../_lib/articleAI'
+import { callLLM, clean, pickProvider } from '../_lib/articleAI'
 import { renderArticle } from '../_lib/articlePages'
 import type { Env } from '../_lib/env'
 import { commitGuarded } from '../_lib/firestore'
@@ -22,7 +22,7 @@ const iso = (d: Date | null): string | null => (d ? d.toISOString() : null)
 export const publicShape = (a: ArticleDoc) => ({ ...a, publishAt: iso(a.publishAt), publishedAt: iso(a.publishedAt), createdAt: iso(a.createdAt), updatedAt: iso(a.updatedAt) })
 
 /**
- * POST /api/articles-admin (admin only). Actions: list | get | save | preview | publish | unpublish | schedule | delete | settings | settings-save
+ * POST /api/articles-admin (admin only). Actions: list | get | save | preview | ai-check | publish | unpublish | schedule | delete | settings | settings-save
  * Every field is validated and size-limited here; the body is stored as the restricted markdown and only ever rendered by the safe renderer.
  */
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
@@ -98,6 +98,21 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
         const a = await readArticle(env, slugOf(b.slug))
         if (!a) throw new HttpError(404, 'not-found', 'المقال مش موجود')
         return json({ html: renderArticle(env, a, { listings: [], articles: [] }, { preview: true }) })
+      }
+      case 'ai-check': { // setup diagnostic: which provider/model is configured, which models the key can really use, and how fast a tiny call is
+        const p = pickProvider(env)
+        if (!p) throw new HttpError(503, 'ai-not-configured', 'مفيش مفتاح AI مضبوط. ضيف GEMINI_API_KEY أو ANTHROPIC_API_KEY في Cloudflare')
+        let models: string[] = []
+        if (p.provider === 'gemini') {
+          try {
+            const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200', { headers: { 'x-goog-api-key': p.key } })
+            if (r.ok) models = (((await r.json()) as { models?: { name?: string; supportedGenerationMethods?: string[] }[] }).models ?? []).filter((m) => m.supportedGenerationMethods?.includes('generateContent')).map((m) => String(m.name).replace(/^models\//, ''))
+          } catch { /* the list is a convenience; the timed call below is the real test */ }
+        }
+        const t0 = Date.now()
+        let ok = false; let error = ''
+        try { await callLLM(env, { system: 'Reply with the single word OK.', user: 'ping', maxTokens: 200, temperature: 0, timeoutMs: 25_000 }); ok = true } catch (e) { error = e instanceof Error ? e.message : 'failed' }
+        return json({ provider: p.provider, model: p.model, ok, ms: Date.now() - t0, error, models: models.slice(0, 80) })
       }
       case 'delete': {
         if (!(await deleteArticle(env, slugOf(b.slug)))) throw new HttpError(404, 'not-found', 'المقال مش موجود')
