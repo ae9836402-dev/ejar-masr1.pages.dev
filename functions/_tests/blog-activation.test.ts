@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { readFileSync } from 'node:fs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { onRequestGet as latest } from '../api/blog-latest'
 import { onRequestPost as admin } from '../api/articles-admin'
 import { onRequestGet as llms } from '../llms.txt'
 import { onRequestGet as sitemap } from '../sitemap.xml'
@@ -66,5 +67,17 @@ describe('blog activation', () => {
     const routes = JSON.parse(readFileSync('public/_routes.json', 'utf8')) as { include: string[] }
     for (const r of ['/blog', '/blog/*', '/llms.txt']) expect(routes.include).toContain(r)
     expect(CSP.split('; ').find((d) => d.startsWith('frame-src'))).toContain('https://www.youtube-nocookie.com')
+  })
+})
+
+
+describe('home page strip endpoint', () => {
+  it('returns only published articles, newest first, max 3', async () => {
+    const mk = async (t: string) => (await act('save', { title: `مقال ${t} عن شقق للايجار في مصر`, primary: `شقق للايجار ${t}`, body })).json.slug as string
+    const [a, b, c, d] = [await mk('اولا'), await mk('ثانيا'), await mk('ثالثا'), await mk('رابعا')]
+    expect((await get(latest, '/api/blog-latest')).json.articles).toEqual([])
+    for (const s of [a, b, c, d]) { await act('publish', { slug: s }); vi.setSystemTime(Date.now() + 1000) }
+    const r = (await get(latest, '/api/blog-latest')).json.articles as { slug: string }[]
+    expect(r.map((x) => x.slug)).toEqual([d, c, b])
   })
 })
