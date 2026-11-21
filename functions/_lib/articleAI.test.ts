@@ -41,10 +41,10 @@ describe('callLLM', () => {
   })
   it('tells the admin WHY the provider refused (status + reason) without ever echoing the key', async () => {
     const orig = console.error; console.error = () => {}
-    stubFetch(() => new Response(JSON.stringify({ error: { status: 'RESOURCE_EXHAUSTED', message: 'Quota exceeded for key AIza-secret' } }), { status: 429 }))
+    stubFetch(() => new Response(JSON.stringify({ error: { status: 'RESOURCE_EXHAUSTED', message: 'Quota exceeded for key AIza-secret' } }), { status: 403 }))
     const e = (await callLLM(env({ GEMINI_API_KEY: 'AIza-secret' }), { system: '', user: '', maxTokens: 1 }).catch((x: unknown) => x)) as Error
     console.error = orig
-    expect(e.message).toContain('429'); expect(e.message).toContain('RESOURCE_EXHAUSTED'); expect(e.message).not.toContain('AIza-secret')
+    expect(e.message).toContain('403'); expect(e.message).toContain('RESOURCE_EXHAUSTED'); expect(e.message).not.toContain('AIza-secret')
   })
   it('maps failures to clean errors that never contain the key or the provider body', async () => {
     const orig = console.error; console.error = () => {}

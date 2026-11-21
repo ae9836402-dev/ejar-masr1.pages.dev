@@ -148,7 +148,7 @@ function GovTypePick({ govId, typeId, onGov, onType }: { govId: string; typeId: 
 }
 
 // ---------- generate ----------
-type Row = PlanItem & { on: boolean; state: 'wait' | 'run' | 'done' | 'fail'; slug?: string; score?: number; msg?: string }
+type Row = PlanItem & { on: boolean; state: 'wait' | 'run' | 'done' | 'fail'; slug?: string; score?: number; msg?: string; issues?: string[] }
 function GenerateTab({ onOpen }: { onOpen: (slug: string | null) => void }) {
   const toast = useToast()
   const [topic, setTopic] = useState('')
@@ -183,8 +183,8 @@ function GenerateTab({ onOpen }: { onOpen: (slug: string | null) => void }) {
       if (stop.current) break
       patch(i, { state: 'run', msg: '' })
       try {
-        const r = await gen<{ slug: string; score: number }>({ action: 'write', topic, govId, typeId, item: { title: it.title, primary: it.primary, secondary: it.secondary, angle: it.angle, audience: it.audience } })
-        patch(i, { state: 'done', slug: r.slug, score: r.score })
+        const r = await gen<{ slug: string; score: number; issues: string[] }>({ action: 'write', topic, govId, typeId, item: { title: it.title, primary: it.primary, secondary: it.secondary, angle: it.angle, audience: it.audience } })
+        patch(i, { state: 'done', slug: r.slug, score: r.score, issues: r.issues })
       } catch (e) { patch(i, { state: 'fail', msg: errText(e) }) }
     }
     setBusy('')
@@ -230,6 +230,7 @@ function GenerateTab({ onOpen }: { onOpen: (slug: string | null) => void }) {
                     {r.state === 'run' && <p className="text-sm text-nile" role="status">بيكتب المقال…</p>}
                     {r.state === 'fail' && <p className="text-sm text-danger" role="alert">{r.msg}</p>}
                     {r.state === 'done' && r.slug && <p className="text-sm">اتحفظ كمسودة (جودة {r.score}). <button type="button" className="text-nile underline" onClick={() => onOpen(r.slug ?? null)}>افتحه للمراجعة</button></p>}
+                    {r.state === 'done' && !!r.issues?.length && <ul className="list-disc space-y-0.5 ps-5 text-xs text-mute" aria-label="ملاحظات الجودة">{r.issues.map((x) => <li key={x}>{x}</li>)}</ul>}
                   </div>
                 </div>
               </li>

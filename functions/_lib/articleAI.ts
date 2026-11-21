@@ -34,7 +34,15 @@ function waitMs(env: Env): number {
   return Number.isFinite(n) && n >= 30 ? Math.min(280, Math.round(n)) * 1000 : TIMEOUT_MS
 }
 
+/** One automatic retry for a busy provider (429 / 500 / 503): these usually clear in seconds, and a retry saves a wasted scheduler slot. */
 export async function callLLM(env: Env, o: { system: string; user: string; maxTokens: number; temperature?: number; timeoutMs?: number }): Promise<string> {
+  try { return await callOnce(env, o) } catch (e) {
+    if (e instanceof HttpError && e.code === 'ai' && /\((429|500|503)\)/.test(e.message)) { await new Promise((r) => setTimeout(r, 3000)); return callOnce(env, o) }
+    throw e
+  }
+}
+
+async function callOnce(env: Env, o: { system: string; user: string; maxTokens: number; temperature?: number; timeoutMs?: number }): Promise<string> {
   const p = pickProvider(env)
   if (!p) throw new HttpError(503, 'ai-not-configured', 'مفيش مفتاح AI مضبوط. ضيف GEMINI_API_KEY أو ANTHROPIC_API_KEY في Cloudflare')
   const started = Date.now()
