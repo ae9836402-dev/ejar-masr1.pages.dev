@@ -18,7 +18,7 @@ interface Article {
 interface Form { title: string; slug: string; description: string; primary: string; secondary: string; govId: string; typeId: string; body: string; videoUrl: string; videoTitle: string; cover: Img | null; images: Img[]; faq: Faq[]; topic: string }
 interface PlanItem { title: string; primary: string; secondary: string[]; angle: string; audience: string }
 interface Topic { topic: string; govId: string; typeId: string }
-interface AutoSettings { enabled: boolean; mode: 'review' | 'auto'; everyHours: number; dailyMax: number; minScore: number; topics: Topic[]; lastRunAt: number | null; lastResult: string; lastError: string; todayCount: number }
+interface AutoSettings { enabled: boolean; mode: 'review' | 'auto'; everyHours: number; dailyMax: number; minScore: number; topics: Topic[]; cursor: number; loop: boolean; lastRunAt: number | null; lastResult: string; lastError: string; todayCount: number }
 interface SaveResult { slug: string; score: number; issues: string[]; similarTo: { slug: string; score: number } | null }
 
 const adm = <T,>(action: string, extra: Record<string, unknown> = {}) => apiPost<T>('/api/articles-admin', { action, ...extra })
@@ -411,12 +411,25 @@ function AutoTab() {
   const [err, setErr] = useState<unknown>(null)
   const [busy, setBusy] = useState('')
   const [tick, setTick] = useState('')
+  const [bulk, setBulk] = useState('')
+  const [bulkGov, setBulkGov] = useState('')
+  const [bulkType, setBulkType] = useState('')
   const { settings, locations } = useSettings()
   const load = useCallback(() => adm<{ settings: AutoSettings }>('settings').then((r) => setS(r.settings)).catch(setErr), [])
   useEffect(() => { void load() }, [load])
   if (err) return <ErrorBox error={err} onRetry={() => void load()} />
   if (!s) return <Spinner />
   const up = <K extends keyof AutoSettings>(k: K, v: AutoSettings[K]) => setS({ ...s, [k]: v })
+  const addBulk = () => {
+    const have = new Set(s.topics.map((x) => x.topic))
+    const lines = bulk.split('\n').map((l) => l.replace(/^\s*(?:[-*•]|\d+\s*[.)\-:])\s*/, '').replace(/\s+/g, ' ').trim().slice(0, 120)).filter((l) => l.length >= 3 && !have.has(l))
+    const fresh = Array.from(new Set(lines)).map((topic) => ({ topic, govId: bulkGov, typeId: bulkType }))
+    if (!fresh.length) { toast.err('مفيش عناوين جديدة (أو كلها مكررة)'); return }
+    const room = 300 - s.topics.length
+    up('topics', [...s.topics, ...fresh.slice(0, room)])
+    setBulk('')
+    toast.ok(fresh.length > room ? `اتضاف ${room} عنوان بس (الحد 300). افتكر تضغط حفظ الإعدادات` : `اتضاف ${Math.min(fresh.length, room)} عنوان. افتكر تضغط حفظ الإعدادات`)
+  }
   const setTopic = (i: number, p: Partial<Topic>) => up('topics', s.topics.map((t, j) => (j === i ? { ...t, ...p } : t)))
 
   async function save() {
@@ -451,16 +464,27 @@ function AutoTab() {
       </div>
 
       <fieldset className="panel space-y-3 p-5">
-        <legend className="px-1 font-display">قائمة المواضيع ({s.topics.length}/80)</legend>
-        {s.topics.map((t, i) => (
-          <div key={i} className="grid gap-2 sm:grid-cols-[1fr_10rem_9rem_auto]">
-            <input className="field" aria-label="الموضوع" value={t.topic} maxLength={120} onChange={(e) => setTopic(i, { topic: e.target.value })} />
-            <select className="field" aria-label="المحافظة" value={t.govId} onChange={(e) => setTopic(i, { govId: e.target.value })}><option value="">عام</option>{locations.govs.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}</select>
-            <select className="field" aria-label="النوع" value={t.typeId} onChange={(e) => setTopic(i, { typeId: e.target.value })}><option value="">كل الأنواع</option>{settings.unitTypes.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}</select>
-            <button type="button" className="btn-ghost text-danger" onClick={() => up('topics', s.topics.filter((_, j) => j !== i))}>حذف</button>
-          </div>
-        ))}
-        {s.topics.length < 80 && <button type="button" className="btn-ghost" onClick={() => up('topics', [...s.topics, { topic: '', govId: '', typeId: '' }])}>إضافة موضوع</button>}
+        <legend className="px-1 font-display">قائمة العناوين ({s.topics.length}/300)</legend>
+        <p className="text-sm text-mute">الصق عناوينك هنا، كل عنوان في سطر (لحد 300). الموقع بيكتب مقال لكل سطر بالترتيب، ومقال واحد في كل مرة حسب المدة اللي حددتها فوق. كل عنوان بيتحول لمقال بعنوان مقارب له والكلمة المفتاحية جواه.</p>
+        <textarea className="field min-h-40" dir="rtl" aria-label="الصق العناوين، كل عنوان في سطر" placeholder={'شقق للايجار في مدينة نصر\nإيجار شقة للعرسان في القاهرة\nأخطاء المستأجر قبل توقيع العقد'} value={bulk} onChange={(e) => setBulk(e.target.value)} />
+        <GovTypePick govId={bulkGov} typeId={bulkType} onGov={setBulkGov} onType={setBulkType} />
+        <div className="flex flex-wrap gap-2">
+          <button type="button" className="btn-primary" disabled={!bulk.trim()} onClick={addBulk}>إضافة العناوين للقائمة</button>
+          {s.topics.length > 0 && <button type="button" className="btn-ghost text-danger" onClick={() => { if (window.confirm('تمسح كل العناوين من القائمة؟')) up('topics', []) }}>مسح القائمة</button>}
+        </div>
+        <label className="flex items-center gap-3 pt-2"><input type="checkbox" checked={s.loop} onChange={(e) => up('loop', e.target.checked)} /><span>لما العناوين تخلص، ابدأ من الأول بزاوية مختلفة (لو مش مفعّل بيقف بعد آخر عنوان)</span></label>
+        <p className="text-sm">اتكتب <b>{Math.min(s.cursor, s.topics.length)}</b> من <b>{s.topics.length}</b> عنوان.</p>
+        <ul className="max-h-96 space-y-2 overflow-y-auto">
+          {s.topics.map((t, i) => (
+            <li key={i} className="grid items-center gap-2 sm:grid-cols-[2rem_1fr_9rem_8rem_auto]">
+              <span className="text-xs text-mute" aria-label={i < s.cursor ? 'اتكتب' : 'في الانتظار'}>{i < s.cursor ? '✓' : i + 1}</span>
+              <input className="field" aria-label="الموضوع" value={t.topic} maxLength={120} onChange={(e) => setTopic(i, { topic: e.target.value })} />
+              <select className="field" aria-label="المحافظة" value={t.govId} onChange={(e) => setTopic(i, { govId: e.target.value })}><option value="">عام</option>{locations.govs.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}</select>
+              <select className="field" aria-label="النوع" value={t.typeId} onChange={(e) => setTopic(i, { typeId: e.target.value })}><option value="">كل الأنواع</option>{settings.unitTypes.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}</select>
+              <button type="button" className="btn-ghost text-danger" onClick={() => up('topics', s.topics.filter((_, j) => j !== i))}>حذف</button>
+            </li>
+          ))}
+        </ul>
       </fieldset>
 
       <div className="flex flex-wrap items-center gap-3">
