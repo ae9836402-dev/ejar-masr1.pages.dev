@@ -16,6 +16,7 @@ import { saveLocations, saveSettings } from '../lib/settingsStore'
 import { getUnit, mapUnit } from '../lib/units'
 import type { AppSettings, LocItem, Option, ReportDoc, ReportStatus, Unit, UserDoc } from '../lib/types'
 import { Badge, Empty, ErrorBox, Field, Spinner } from '../components/ui'
+import { DesignTab } from '../components/DesignTab'
 
 type Tab = keyof typeof ar.admin.tabs
 const TABS = Object.keys(ar.admin.tabs) as Tab[]
@@ -39,6 +40,7 @@ export default function Admin() {
       <div className="mt-6">
         {tab === 'stats' && <StatsTab />}
         {tab === 'settings' && <SettingsTab />}
+        {tab === 'design' && <DesignTab />}
         {tab === 'units' && <UnitsTab />}
         {tab === 'users' && <UsersTab />}
         {tab === 'reports' && <ReportsTab />}

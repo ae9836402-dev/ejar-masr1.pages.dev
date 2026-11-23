@@ -18,7 +18,7 @@ export function UnitCard({ unit }: { unit: Unit }) {
     <article className="panel overflow-hidden">
       <Link to={`/unit/${unit.id}`} className="block">
         <div className="aspect-[4/3] bg-line/50">
-          {cover && <img src={images.url(cover, { w: 480, h: 360 })} alt={unit.title} loading="lazy" width={480} height={360} className="h-full w-full object-cover" />}
+          {cover && <img src={images.url(cover, { w: 320, h: 240 })} srcSet={`${images.url(cover, { w: 320, h: 240 })} 320w, ${images.url(cover, { w: 480, h: 360 })} 480w, ${images.url(cover, { w: 640, h: 480 })} 640w`} sizes="(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw" alt={unit.title} loading="lazy" width={480} height={360} className="h-full w-full object-cover" />}
         </div>
       </Link>
       <div className="space-y-2 p-4">

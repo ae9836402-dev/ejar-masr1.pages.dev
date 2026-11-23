@@ -1,6 +1,7 @@
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from './firebase'
 import { DEFAULT_SETTINGS } from './defaults'
+import { normalizeDesign } from './designIds'
 import { edgeAvailable, fetchEdge, markEdgeDown, revive } from './edgeApi'
 import type { AppSettings, LocItem } from './types'
 
@@ -27,6 +28,7 @@ export function mergeSettings(d: Partial<AppSettings> | undefined): AppSettings 
   return {
     ...DEFAULT_SETTINGS,
     ...(d ?? {}),
+    design: normalizeDesign(d?.design),
     unitTypes: d?.unitTypes?.length ? d.unitTypes : DEFAULT_SETTINGS.unitTypes,
     amenities: d?.amenities ?? DEFAULT_SETTINGS.amenities,
   }
