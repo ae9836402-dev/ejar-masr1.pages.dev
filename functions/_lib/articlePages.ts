@@ -1,9 +1,10 @@
 /** Server-rendered blog pages: complete HTML in the response (best for search engines), tiny inline CSS, no JavaScript, no client bundle, so they are fast. */
 import { BRAND } from '../../src/lib/brand'
 import type { ArticleDoc, DirEntry } from './articleStore'
-import { excerpt, readingMinutes, renderMarkdown } from './articleText'
+import { excerpt, readingMinutes, relinkSite, renderMarkdown } from './articleText'
+import { normalizeDesign, type DesignId } from '../../src/lib/designIds'
 import type { Env } from './env'
-import { siteUrl } from './env'
+import { previousSiteUrls, siteUrl } from './env'
 import { cloudinaryUrl, escapeHtml, safeJsonLd } from './logic'
 import type { WireDoc } from './listings'
 import { GOVS } from './seo'
@@ -25,18 +26,26 @@ details{background:var(--card);border:1px solid var(--line);border-radius:10px;p
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;margin:1rem 0}.card{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden;text-decoration:none;color:var(--fg);display:block}
 .card img{width:100%;aspect-ratio:4/3;object-fit:cover;display:block;background:var(--line)}.card div{padding:10px 12px;font-size:.95rem;line-height:1.6}.card small{color:var(--mute);display:block}
 .pager{display:flex;gap:12px;justify-content:center;margin:2rem 0}.draft{background:#b45309;color:#fff;padding:8px 14px;text-align:center;font-size:.9rem}
-footer{border-top:1px solid var(--line);padding:20px 16px;text-align:center;color:var(--mute);font-size:.9rem}footer a{color:var(--mute);margin:0 8px}`
+footer{border-top:1px solid var(--line);padding:20px 16px;text-align:center;color:var(--mute);font-size:.9rem}footer a{color:var(--mute);margin:0 8px}
+html[data-design=classic]{--r:6px}html[data-design=classic]:not(.x){--bg:#f6f2e8}
+@media(prefers-color-scheme:dark){html[data-design=classic]:not(.x){--bg:#0f0f10}}
+html[data-design=royal]{color-scheme:dark;--bg:#061431;--fg:#f5f7fc;--mute:#a9bad6;--card:#0d2a57;--line:#2d4f86;--brand:#d9a441;--on:#2a1a00;--gold:#f0cf86}
+html[data-design=royal] body{background-image:radial-gradient(ellipse 80% 420px at 50% 0,rgba(26,74,150,.35),transparent 70%);background-repeat:no-repeat}
+html[data-design=royal] .top{background:rgba(6,20,49,.92);border-bottom:1px solid rgba(217,164,65,.3)}html[data-design=royal] .logo{font-weight:900;border-bottom:2px solid #d9a441;padding-bottom:2px}
+html[data-design=royal] .card,html[data-design=royal] .toc,html[data-design=royal] details{border-color:rgba(217,164,65,.28)}
+html[data-design=royal] .cta{background:linear-gradient(135deg,#f0cf86,#d9a441)}html[data-design=royal] h1,html[data-design=royal] h2{font-weight:900}
+html[data-design=royal] footer{border-top-color:rgba(217,164,65,.3)}`
 
 const fmtDate = (d: Date): string => d.toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Africa/Cairo' })
 const imageUrl = (id: string, w: number): string => cloudinaryUrl(id, w, Math.round((w * 2) / 3))
 export const blogUrl = (env: Env, slug?: string): string => `${siteUrl(env)}/blog${slug ? `/${encodeURIComponent(slug)}` : ''}`
 
-interface Shell { title: string; description: string; canonical: string; body: string; jsonLd: unknown[]; image?: string; robots?: string; type?: 'website' | 'article'; published?: string; banner?: string }
+interface Shell { design?: DesignId; title: string; description: string; canonical: string; body: string; jsonLd: unknown[]; image?: string; robots?: string; type?: 'website' | 'article'; published?: string; banner?: string }
 function shell(env: Env, s: Shell): string {
   const base = siteUrl(env)
   const image = s.image ?? `${base}/og-default.png`
   return `<!doctype html>
-<html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<html lang="ar" dir="rtl" data-design="${normalizeDesign(s.design)}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${escapeHtml(s.title)} | ${escapeHtml(BRAND)}</title>
 <meta name="description" content="${escapeHtml(s.description)}">
 <meta name="robots" content="${s.robots ?? 'index,follow,max-image-preview:large'}">
@@ -65,8 +74,9 @@ const articleCard = (env: Env, e: DirEntry): string => {
   return `<a class="card" href="/blog/${escapeHtml(encodeURIComponent(e.slug))}">${img}<div><strong>${escapeHtml(e.title)}</strong><small>${escapeHtml(e.description.slice(0, 110))}</small></div></a>`.replace('href="/blog', `href="${escapeHtml(new URL(blogUrl(env)).pathname)}`)
 }
 
-export function renderArticle(env: Env, a: ArticleDoc, rel: { listings: WireDoc[]; articles: DirEntry[] }, opts: { preview?: boolean } = {}): string {
+export function renderArticle(env: Env, a0: ArticleDoc, rel: { listings: WireDoc[]; articles: DirEntry[] }, opts: { preview?: boolean; design?: DesignId } = {}): string {
   const base = siteUrl(env)
+  const a: ArticleDoc = { ...a0, body: relinkSite(a0.body, base, previousSiteUrls(env)) } // {{site}} and old domains in the text follow the current domain
   const url = blogUrl(env, a.slug)
   const videoHtml = a.videoId ? `<div class="video"><iframe src="https://www.youtube-nocookie.com/embed/${escapeHtml(a.videoId)}" title="${escapeHtml(a.videoTitle || a.title)}" loading="lazy" allow="encrypted-media; picture-in-picture" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>` : ''
   let md = a.body
@@ -98,11 +108,11 @@ ${rel.articles.length ? `<section><h2>مقالات ممكن تفيدك</h2><div 
   const ld: unknown[] = [articleLd, { '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: crumbs.map((c, i) => ({ '@type': 'ListItem', position: i + 1, name: c.name, item: c.url })) }]
   if (a.faq.length) ld.push({ '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: a.faq.map((f) => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })) })
   if (a.videoId) ld.push({ '@context': 'https://schema.org', '@type': 'VideoObject', name: a.videoTitle || a.title, description: a.description, thumbnailUrl: [`https://i.ytimg.com/vi/${a.videoId}/hqdefault.jpg`], uploadDate: published.toISOString(), embedUrl: `https://www.youtube-nocookie.com/embed/${a.videoId}` })
-  return shell(env, { title: a.title, description: a.description || excerpt(a.body), canonical: url, body, jsonLd: ld, image: coverUrl, type: 'article', published: published.toISOString(), robots: opts.preview ? 'noindex,nofollow' : undefined, banner: opts.preview ? 'معاينة: المقال لسه غير منشور' : undefined })
+  return shell(env, { design: opts.design, title: a.title, description: a.description || excerpt(a.body), canonical: url, body, jsonLd: ld, image: coverUrl, type: 'article', published: published.toISOString(), robots: opts.preview ? 'noindex,nofollow' : undefined, banner: opts.preview ? 'معاينة: المقال لسه غير منشور' : undefined })
 }
 
 export const PAGE_SIZE = 12
-export function renderIndex(env: Env, entries: DirEntry[], page: number): string {
+export function renderIndex(env: Env, entries: DirEntry[], page: number, design?: DesignId): string {
   const total = Math.max(1, Math.ceil(entries.length / PAGE_SIZE))
   const p = Math.min(Math.max(1, page), total)
   const shown = entries.slice((p - 1) * PAGE_SIZE, p * PAGE_SIZE)
@@ -113,9 +123,9 @@ export function renderIndex(env: Env, entries: DirEntry[], page: number): string
 ${shown.length ? `<div class="grid">${shown.map((e) => articleCard(env, e)).join('')}</div>` : '<p>مفيش مقالات منشورة لسه. ارجع قريب!</p>'}
 ${total > 1 ? `<nav class="pager" aria-label="الصفحات">${p > 1 ? `<a href="/blog${p > 2 ? `?page=${p - 1}` : ''}">السابق</a>` : ''}<span>${p} / ${total}</span>${p < total ? `<a href="/blog?page=${p + 1}">التالي</a>` : ''}</nav>` : ''}`
   const ld = [{ '@context': 'https://schema.org', '@type': 'CollectionPage', name: title, url, inLanguage: 'ar', hasPart: shown.map((e) => ({ '@type': 'BlogPosting', headline: e.title, url: blogUrl(env, e.slug) })) }, { '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: [{ '@type': 'ListItem', position: 1, name: BRAND, item: `${siteUrl(env)}/` }, { '@type': 'ListItem', position: 2, name: 'المدونة', item: blogUrl(env) }] }]
-  return shell(env, { title, description, canonical: url, body, jsonLd: ld, robots: entries.length ? undefined : 'noindex,follow' })
+  return shell(env, { design, title, description, canonical: url, body, jsonLd: ld, robots: entries.length ? undefined : 'noindex,follow' })
 }
 
-export function renderNotFound(env: Env): string {
-  return shell(env, { title: 'المقال مش موجود', description: 'المقال المطلوب غير موجود أو اتشال.', canonical: blogUrl(env), robots: 'noindex,follow', body: '<h1>المقال مش موجود</h1><p>ممكن يكون اتشال أو الرابط غلط. شوف <a href="/blog">كل المقالات</a> أو <a href="/search">ابحث عن وحدة</a>.</p>', jsonLd: [] })
+export function renderNotFound(env: Env, design?: DesignId): string {
+  return shell(env, { design, title: 'المقال مش موجود', description: 'المقال المطلوب غير موجود أو اتشال.', canonical: blogUrl(env), robots: 'noindex,follow', body: '<h1>المقال مش موجود</h1><p>ممكن يكون اتشال أو الرابط غلط. شوف <a href="/blog">كل المقالات</a> أو <a href="/search">ابحث عن وحدة</a>.</p>', jsonLd: [] })
 }

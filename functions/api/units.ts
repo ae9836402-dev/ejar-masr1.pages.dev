@@ -49,7 +49,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       const snap = await getSnapshot(env)
       if (!snap.truncated) {
         const r = pageFromSnapshot(snap, { gov: gov || undefined, rent: rent || undefined, sort, n, after, now: Date.now() })
-        return { docs: r.docs, next: r.next ? encodeCursor(r.next) : null }
+        return { docs: r.docs, next: r.next ? encodeCursor(r.next) : null, total: snap.units.length } // total = all active listings (the home page statistic, so it needs no database read of its own)
       }
       // 300+ active listings: the snapshot cannot hold them all, use real queries (this needs the composite indexes in firestore.indexes.json).
       const where = [{ field: 'status', op: 'EQUAL' as const, value: 'active' }]

@@ -114,3 +114,23 @@ export function youtubeId(input: string): string | null {
     return /^[A-Za-z0-9_-]{11}$/.test(id) ? id : null
   } catch { return null }
 }
+
+/**
+ * Keeps the site's own address inside article text correct when the domain changes.
+ *  - `{{site}}` (or `{{SITE_URL}}`) becomes the current address, so an editor can write [موقعنا]({{site}}/search) once and forget it.
+ *  - Any older address (the previous domain, with or without https:// / www.) is rewritten to the current one, so articles that already
+ *    contain the old domain follow the move without being edited. Done when the page is rendered, nothing stored changes.
+ * `base` and `olds` are full addresses like https://example.com (no trailing slash).
+ */
+export function relinkSite(md: string, base: string, olds: string[] = []): string {
+  let out = md.split('{{site}}').join(base).split('{{SITE_URL}}').join(base)
+  const host = (u: string): string => u.replace(/^https?:\/\//i, '').replace(/^www\./i, '').replace(/\/.*$/, '')
+  const newHost = host(base)
+  for (const o of olds) {
+    const oh = host(o)
+    if (!oh || oh === newHost) continue
+    for (const pre of ['https://www.', 'http://www.', 'https://', 'http://']) out = out.split(`${pre}${oh}`).join(base)
+    out = out.split(oh).join(newHost) // bare mentions such as link text
+  }
+  return out
+}

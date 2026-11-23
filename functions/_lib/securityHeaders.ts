@@ -11,7 +11,7 @@
  */
 
 /** sha256 of the inline theme script in index.html (it prevents a dark-mode flash). Recompute if that script changes (a test checks it). */
-export const THEME_SCRIPT_HASH = "'sha256-lJmKquJzLCR86oMqtc2G8tMzQ/fkIGO1kJT7LG7tNA8='"
+export const THEME_SCRIPT_HASH = "'sha256-vBxvsvGPYDDjNR9jdf4PGZGDtTdXGI5bsi7UF2K+L7k='"
 
 export const CSP = [
   "default-src 'self'",
