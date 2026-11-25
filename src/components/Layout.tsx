@@ -10,6 +10,7 @@ import { usePolicy } from '../lib/rentals'
 import { Logo } from './Logo'
 import { Wordmark } from './Wordmark'
 import { ScrollBar } from './ScrollBar'
+import { InstallBanner, InstallButton } from './InstallBanner'
 import { useSettings } from '../contexts/SettingsContext'
 
 const linkCls = ({ isActive }: { isActive: boolean }) => `rounded-field px-3 py-2 hover:bg-line/60 ${isActive ? 'font-semibold text-nile' : ''}`
@@ -24,6 +25,7 @@ export function Layout() {
   return (
     <div className="flex min-h-screen flex-col">
       <ScrollBar />
+      <InstallBanner />
       <ConfigNotice />
       <header className={`sticky top-0 z-30 border-b backdrop-blur ${royal ? 'border-nile-dark/30 bg-paper/90' : 'border-line bg-paper/95'}`}>
         <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3">
@@ -90,6 +92,7 @@ export function Layout() {
             <Link to="/safety">{ar.footer.safety}</Link>
             <Link to="/contact">{ar.footer.contact}</Link>
           </nav>
+          <InstallButton className="btn-primary w-fit" />
           <p>{ar.footer.disclaimer}</p>
           <p>© {new Date().getFullYear()} {ar.footer.rights}</p>
         </div>

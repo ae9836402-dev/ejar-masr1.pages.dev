@@ -55,6 +55,30 @@ describe('article store', () => {
   })
 })
 
+const longAnswer = (primary: string) => {
+  const para = (n: number, k: number) => Array.from({ length: 60 }, (_, i) => `تفصيلة${n}م${k}ر${i}`).join(' ')
+  const base = JSON.parse(fakeAnswer(primary)) as Record<string, unknown>
+  return JSON.stringify({ ...base, sections: [1, 2, 3, 4, 5, 6].map((n) => ({ heading: `القسم رقم ${n} بصياغة مختلفة عن غيره`, paragraphs: [para(n, 1), para(n, 2), para(n, 3)] })) })
+}
+
+describe('quality revision pass', () => {
+  it('asks the model once to fix a weak first draft and keeps the better version', async () => {
+    callLLM.mockResolvedValue(fakeAnswer(PRIMARY))
+    const single = await write()
+    callLLM.mockReset()
+    callLLM.mockResolvedValueOnce(fakeAnswer(PRIMARY)).mockResolvedValueOnce(longAnswer(PRIMARY))
+    const improved = await write()
+    expect(callLLM).toHaveBeenCalledTimes(2)
+    expect(String(callLLM.mock.calls[1][1].user)).toContain('المشاكل بالضبط')
+    expect(improved.article.score).toBeGreaterThan(single.article.score)
+  })
+  it('keeps the first draft when the revision call fails', async () => {
+    callLLM.mockResolvedValueOnce(fakeAnswer(PRIMARY)).mockRejectedValueOnce(new Error('busy'))
+    const r = await write()
+    expect(r.article.title).toContain(PRIMARY)
+  })
+})
+
 describe('writeArticle', () => {
   it('saves a DRAFT whose link is the search words, marked as AI-written', async () => {
     callLLM.mockResolvedValue(fakeAnswer(PRIMARY))
@@ -114,7 +138,7 @@ describe('the scheduler', () => {
     expect(first.error).toBeNull(); expect(first.generated).toContain('مسودة')
     expect((await loadDirectory(env())).entries).toHaveLength(1)
     expect((await tick()).skipped).toBe('not due yet')
-    expect(callLLM).toHaveBeenCalledTimes(1)
+    expect(callLLM).toHaveBeenCalledTimes(2) // the short test draft scores low, so there is one revision call; the second tick calls nothing
   })
   it('respects the daily cap', async () => {
     seedSettings({ dayKey: new Date().toISOString().slice(0, 10), todayCount: 2, dailyMax: 2 })

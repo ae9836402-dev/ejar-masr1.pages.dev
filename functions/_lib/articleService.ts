@@ -1,5 +1,5 @@
 /** The article pipeline: settings, planning, writing one article, and the automatic scheduler. Everything an admin button or the cron calls. */
-import { AiFormatError, callLLM, defaultLinks, factsText, fetchSuggestions, parseModelJson, pickProvider, planPrompt, snapshotFacts, validateArticle, validatePlan, writePrompt, WRITER_SYSTEM, autoPlaceImages, type PlanItem, type PlanMode } from './articleAI'
+import { AiFormatError, callLLM, defaultLinks, factsText, fetchSuggestions, improvePrompt, parseModelJson, pickProvider, planPrompt, snapshotFacts, validateArticle, validatePlan, writePrompt, WRITER_SYSTEM, autoPlaceImages, type PlanItem, type PlanMode, type Written, type WriteCtx } from './articleAI'
 import { analyzeArticle, minhash, sigSimilarity } from './articleQuality'
 import { arabicSlug, uniqueSlug } from './articleText'
 import { loadDirectory, readArticle, saveArticle, type ArticleDoc, type DirEntry } from './articleStore'
@@ -103,16 +103,30 @@ export async function writeArticle(env: Env, p: WriteParams): Promise<WriteResul
   const g = GOVS.find((x) => x.id === p.govId)
   const typeLabel = p.typeId ? String((snap?.units.find((u) => u.data.typeId === p.typeId)?.data.typeName) ?? '') : ''
   const siblings = dir.entries.filter((e) => e.status !== 'draft' || e.topic === p.topic).sort((a, b) => (b.topic === p.topic ? 1 : 0) - (a.topic === p.topic ? 1 : 0)).slice(0, 12).map((e) => `- /blog/${e.slug} : ${e.title}`)
-  const prompt = writePrompt({ item: p.item, topic: p.topic, facts: snap ? factsText(snapshotFacts(snap, p.govId, p.typeId)) : 'لا تتوفر بيانات.', links: defaultLinks(g?.slug, g?.name, p.typeId || undefined, typeLabel || undefined), siblings, today: p.now.toISOString().slice(0, 10) })
-  let written
+  const links = defaultLinks(g?.slug, g?.name, p.typeId || undefined, typeLabel || undefined)
+  const ctx: WriteCtx = { item: p.item, topic: p.topic, facts: snap ? factsText(snapshotFacts(snap, p.govId, p.typeId)) : 'لا تتوفر بيانات.', links, siblings, today: p.now.toISOString().slice(0, 10) }
+  const prompt = writePrompt(ctx)
+  const t0 = Date.now()
+  let written: Written
   try { written = validateArticle(parseModelJson(await callLLM(env, { system: WRITER_SYSTEM, user: prompt, maxTokens: 8000, temperature: 0.85 }))) } catch (e) {
     if (!(e instanceof AiFormatError)) throw e
     try { written = validateArticle(parseModelJson(await callLLM(env, { system: WRITER_SYSTEM, user: `${prompt}\n\nتنبيه: التزم بالهيكل كاملًا (مقدمة، 5 أقسام على الأقل، خاتمة، أسئلة شائعة) وأخرج JSON صالحًا فقط.`, maxTokens: 8000, temperature: 0.6 }))) } catch { throw new HttpError(502, 'ai-format', 'الـ AI رجّع مقال ناقص أو بصيغة غير صالحة. جرّب تاني') }
   }
+  // Quality pass: if the first draft misses the target, ask the model once to fix exactly what the checker found, and keep whichever version scores higher.
+  const rate = (w: Written) => analyzeArticle({ title: w.title, description: fitDescription(w.description), slug: arabicSlug(p.item.primary), body: ensureInternalLinks(w.body, links), primary: p.item.primary, secondary: p.item.secondary, faq: w.faq, images: [] })
+  const first = rate(written)
+  const target = Math.max(p.minScore + 5, 85)
+  const spent = Date.now() - t0
+  if (first.score < target && first.issues.length && spent < 45_000) { // one request must stay under the platform's ~100 s limit, so no second pass after a slow first call
+    try {
+      const better = validateArticle(parseModelJson(await callLLM(env, { system: WRITER_SYSTEM, user: improvePrompt(ctx, written, first.issues), maxTokens: 8000, temperature: 0.7, timeoutMs: Math.max(20_000, Math.min(85_000, 92_000 - spent)) })))
+      if (rate(better).score > first.score) written = better
+    } catch { /* the first draft stands */ }
+  }
   const photos = listingImages(snap, p.govId, p.typeId)
   const cover = photos[0] ?? null
   const bodyImages = photos.slice(1)
-  const body = ensureInternalLinks(autoPlaceImages(written.body, bodyImages.length), defaultLinks(g?.slug, g?.name, p.typeId || undefined, typeLabel || undefined))
+  const body = ensureInternalLinks(autoPlaceImages(written.body, bodyImages.length), links)
   const description = fitDescription(written.description)
   const taken = async (x: string) => dir.entries.some((e) => e.slug === x)
   const firstChoice = arabicSlug(p.item.primary) // the words people search for

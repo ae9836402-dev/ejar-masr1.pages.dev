@@ -1,0 +1,22 @@
+name: articles-cron
+# Every 3 hours asks the site "is an article due?". The site decides from the admin's settings (Admin > المقالات > الأتمتة):
+# nothing happens while automation is off, or before the next slot, or after the daily limit.
+on:
+  schedule: [{ cron: '15 */3 * * *' }]
+  workflow_dispatch: {}
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call /api/article-cron
+        env:
+          SITE_URL: ${{ secrets.SITE_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          url="$SITE_URL"
+          case "$url" in http*) ;; *) url="https://$url" ;; esac
+          url="${url%/}"
+          code=$(curl -sS -m 170 -o out.json -w '%{http_code}' -X POST -H "Authorization: Bearer $CRON_SECRET" "$url/api/article-cron" || echo 000)
+          cat out.json 2>/dev/null; echo
+          if [ "$code" != "200" ]; then echo "article-cron answered HTTP $code"; exit 1; fi

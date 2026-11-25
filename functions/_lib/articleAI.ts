@@ -205,6 +205,29 @@ ${c.facts}
 {"title":"","description":"","intro":["فقرة","فقرة"],"sections":[{"heading":"","paragraphs":["",""],"bullets":[],"sub":[{"heading":"","paragraphs":[""]}]}],"conclusion":{"heading":"","paragraphs":[""]},"faq":[{"q":"","a":""}]}`
 }
 
+/**
+ * Second pass: the first draft is shown to the model together with the exact problems the quality checker found
+ * (too short, keyword missing from the title, canned phrases...) and it writes the improved full article in the same JSON shape.
+ * Small / "lite" models usually write 500-700 words the first time; this is what brings them to 900+ and fixes the SEO misses.
+ */
+export function improvePrompt(c: WriteCtx, prev: { title: string; description: string; body: string; faq: { q: string; a: string }[] }, issues: string[]): string {
+  return `${writePrompt(c)}
+
+---
+عندك مسودة أولى لنفس المقال، وفيها مشاكل لازم تتعالج في النسخة النهائية. المشاكل بالضبط:
+${issues.map((i) => `- ${i}`).join('\n')}
+
+أعد كتابة المقال كاملًا بشكل أفضل: وسّع الأقسام القصيرة بتفاصيل وأمثلة عملية جديدة (مش حشو ولا تكرار)، وعالج كل مشكلة فوق، واحتفظ بالنقاط الجيدة في المسودة. الطول المطلوب من 1100 إلى 1400 كلمة، والعنوان من 40 إلى 65 حرف فيه الكلمة الأساسية، والوصف من 130 إلى 155 حرف فيه الكلمة الأساسية، وفي رابطين داخليين على الأقل، ومن غير أي عبارة ممنوعة. أخرج JSON بنفس الهيكل المطلوب فقط.
+
+المسودة الأولى:
+العنوان: ${prev.title}
+الوصف: ${prev.description}
+${prev.body.slice(0, 9000)}
+
+الأسئلة الشائعة الحالية:
+${prev.faq.map((f) => `- ${f.q} ${f.a}`).join('\n')}`
+}
+
 // ---------- reading the model's answer ----------
 export class AiFormatError extends Error { constructor(m: string) { super(m); this.name = 'AiFormatError' } }
 

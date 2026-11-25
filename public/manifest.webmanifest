@@ -1,0 +1,24 @@
+{
+  "id": "/",
+  "name": "إيجار مصر",
+  "short_name": "إيجار مصر",
+  "description": "ابحث عن شقة أو غرفة أو فيلا أو محل للإيجار في كل محافظات مصر.",
+  "lang": "ar",
+  "dir": "rtl",
+  "start_url": "/?source=app",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0B1B3A",
+  "theme_color": "#0B1B3A",
+  "categories": ["lifestyle", "business"],
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "ابحث عن وحدة", "url": "/search?source=shortcut", "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }] },
+    { "name": "أضف وحدتك", "url": "/dashboard/new?source=shortcut", "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }] }
+  ]
+}
