@@ -17,3 +17,22 @@ describe('relinkSite: the site address inside articles follows the domain', () =
     expect(relinkSite(md, base, ['https://old.pages.dev', base])).toBe(md)
   })
 })
+
+import { renderInline } from '../_lib/articleText'
+
+describe('links inside articles are clickable', () => {
+  const base = 'https://new-domain.com'
+  it('a plain address typed in the text becomes a link, without swallowing the punctuation after it', () => {
+    const h = renderInline('زوروا https://new-domain.com/search، أو https://example.org/x.', base)
+    expect(h).toContain('<a href="https://new-domain.com/search">https://new-domain.com/search</a>،')
+    expect(h).toContain('<a href="https://example.org/x" rel="nofollow noopener" target="_blank">https://example.org/x</a>.')
+  })
+  it("the site's own links are normal links (same tab, followed); other sites open in a new tab as nofollow", () => {
+    expect(renderInline('[موقعنا](https://new-domain.com/)', base)).toBe('<a href="https://new-domain.com/">موقعنا</a>')
+    expect(renderInline('[خارجي](https://example.org)', base)).toContain('rel="nofollow noopener" target="_blank"')
+  })
+  it('stays safe: unsafe schemes never become links, and a link is not linked twice', () => {
+    expect(renderInline('[x](javascript:alert(1))', base)).not.toContain('<a')
+    expect((renderInline('[a](https://example.org/p)', base).match(/<a /g) ?? []).length).toBe(1)
+  })
+})

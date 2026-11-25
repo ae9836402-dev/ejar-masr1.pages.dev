@@ -10,6 +10,8 @@ export interface Env {
   SITE_URL?: string
   /** Optional, comma-separated previous domains (e.g. "old.example.com,https://other.pages.dev"): links to them inside articles are shown with the current domain. */
   OLD_SITE_URLS?: string
+  /** Optional: model tried once when AI_MODEL is overloaded (503/429/500). Default for Gemini: gemini-2.5-flash. */
+  AI_FALLBACK_MODEL?: string
   PAYMOB_SECRET_KEY?: string
   PAYMOB_PUBLIC_KEY?: string
   PAYMOB_INTEGRATION_IDS?: string // comma-separated card/wallet integration ids

@@ -83,6 +83,30 @@ html[data-design='classic']:not(.dark) {
   --c-paper: 246 242 232;
   --c-line: 224 215 195;
 }
+/* classic at night: the same navy + ivory + gold identity (not neutral charcoal), so night mode looks like the design, only darker */
+html[data-design='classic'].dark {
+  --c-ink: 237 230 211;      /* #ede6d3 warm ivory text */
+  --c-paper: 8 20 42;        /* #08142a deep navy page */
+  --c-surface: 14 32 64;     /* #0e2040 cards */
+  --c-line: 38 62 104;       /* #263e68 */
+  --c-mute: 167 180 204;     /* #a7b4cc */
+  --c-nile: 230 200 119;     /* #e6c877 gold text */
+  --c-nile-dark: 201 162 75; /* #c9a24b gold button fill (navy text) */
+  --c-sand: 230 200 119;
+  --c-danger: 244 128 128;
+  --c-logo: 8 20 42;
+  color-scheme: dark;
+}
+html[data-design='classic'].dark body {
+  background-image: radial-gradient(ellipse 70% 460px at 72% 0, rgb(31 78 154 / .28), transparent 70%);
+  background-repeat: no-repeat;
+}
+html[data-design='classic'].dark .btn-ghost { border-color: rgb(201 162 75 / .45); }
+html[data-design='classic'].dark .btn-ghost:hover { background: rgb(201 162 75 / .14); }
+html[data-design='classic'].dark .panel { border-color: rgb(201 162 75 / .22); }
+html[data-design='classic'].dark .chip { border-color: rgb(201 162 75 / .35); }
+html[data-design='classic'].dark select option { color: #111; background: #fff; }
+
 html[data-design='classic']:not(.dark) .btn-primary { background: #C9A24B; color: #0A1830; font-weight: 600; }
 html[data-design='classic']:not(.dark) .btn-primary:hover { background: #E6C877; color: #0A1830; }
 

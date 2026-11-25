@@ -34,16 +34,27 @@ function waitMs(env: Env): number {
   return Number.isFinite(n) && n >= 30 ? Math.min(280, Math.round(n)) * 1000 : TIMEOUT_MS
 }
 
-/** One automatic retry for a busy provider (429 / 500 / 503): these usually clear in seconds, and a retry saves a wasted scheduler slot. */
+/**
+ * A busy provider (429 / 500 / 503) usually clears in seconds: one retry, and if the same model is still overloaded, one try with a fallback model
+ * (AI_FALLBACK_MODEL, default gemini-2.5-flash for Gemini) so a spike on one model does not fail the whole article.
+ */
 export async function callLLM(env: Env, o: { system: string; user: string; maxTokens: number; temperature?: number; timeoutMs?: number }): Promise<string> {
+  const busy = (e: unknown): boolean => e instanceof HttpError && e.code === 'ai' && /\((429|500|503)\)/.test(e.message)
   try { return await callOnce(env, o) } catch (e) {
-    if (e instanceof HttpError && e.code === 'ai' && /\((429|500|503)\)/.test(e.message)) { await new Promise((r) => setTimeout(r, 3000)); return callOnce(env, o) }
-    throw e
+    if (!busy(e)) throw e
+    await new Promise((r) => setTimeout(r, 3000))
+    try { return await callOnce(env, o) } catch (e2) {
+      const p = pickProvider(env)
+      const fb = env.AI_FALLBACK_MODEL || (p?.provider === 'gemini' ? 'gemini-2.5-flash' : '')
+      if (!busy(e2) || !p || !fb || fb === p.model) throw e2
+      return callOnce(env, o, fb)
+    }
   }
 }
 
-async function callOnce(env: Env, o: { system: string; user: string; maxTokens: number; temperature?: number; timeoutMs?: number }): Promise<string> {
-  const p = pickProvider(env)
+async function callOnce(env: Env, o: { system: string; user: string; maxTokens: number; temperature?: number; timeoutMs?: number }, model?: string): Promise<string> {
+  const picked = pickProvider(env)
+  const p = picked && model ? { ...picked, model } : picked
   if (!p) throw new HttpError(503, 'ai-not-configured', 'مفيش مفتاح AI مضبوط. ضيف GEMINI_API_KEY أو ANTHROPIC_API_KEY في Cloudflare')
   const started = Date.now()
   const ctl = new AbortController()

@@ -79,3 +79,15 @@ describe('royal palette (index.css)', () => {
   })
   it('is actually dark', () => { expect(lum(tok.paper)).toBeLessThan(0.02) })
 })
+
+describe('classic night palette (index.css)', () => {
+  const css = readFileSync('src/index.css', 'utf8')
+  const body = /html\[data-design='classic'\]\.dark\s*\{([^}]*)\}/.exec(css)?.[1] ?? ''
+  const tok = Object.fromEntries([...body.matchAll(/--c-([\w-]+):\s*(\d+)\s+(\d+)\s+(\d+)/g)].map((m) => [m[1], [Number(m[2]), Number(m[3]), Number(m[4])] as [number, number, number]]))
+  const lum = ([r, g, b]: number[]): number => { const f = (c: number): number => { const s = c / 255; return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4 }; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b) }
+  const contrast = (a: number[], b: number[]): number => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05) }
+  it('is navy (not neutral grey) and keeps all text readable (AA 4.5:1)', () => {
+    expect(tok.paper[2]).toBeGreaterThan(tok.paper[0] + 20) // blue clearly above red: navy, not charcoal
+    for (const [a, b] of [['ink', 'paper'], ['ink', 'surface'], ['mute', 'paper'], ['mute', 'surface'], ['nile', 'paper'], ['nile', 'surface'], ['danger', 'paper'], ['paper', 'nile-dark']]) expect([a, b, contrast(tok[a], tok[b]) >= 4.5]).toEqual([a, b, true])
+  })
+})

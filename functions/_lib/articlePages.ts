@@ -81,7 +81,7 @@ export function renderArticle(env: Env, a0: ArticleDoc, rel: { listings: WireDoc
   const videoHtml = a.videoId ? `<div class="video"><iframe src="https://www.youtube-nocookie.com/embed/${escapeHtml(a.videoId)}" title="${escapeHtml(a.videoTitle || a.title)}" loading="lazy" allow="encrypted-media; picture-in-picture" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>` : ''
   let md = a.body
   if (a.videoId && !/\{\{video\}\}/.test(md)) { const at = md.lastIndexOf('\n## '); md = at > 0 ? `${md.slice(0, at)}\n\n{{video}}\n${md.slice(at)}` : `${md}\n\n{{video}}` } // video goes before the last section unless the editor placed it
-  const { html, headings } = renderMarkdown(md, { images: a.images, imageUrl, videoHtml })
+  const { html, headings } = renderMarkdown(md, { images: a.images, imageUrl, videoHtml, siteBase: base })
   const g = GOVS.find((x) => x.id === a.govId)
   const published = a.publishedAt ?? a.createdAt
   const cover = a.cover ?? a.images[0] ?? null

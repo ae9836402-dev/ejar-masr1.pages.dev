@@ -33,19 +33,34 @@ export async function uniqueSlug(base: string, taken: (slug: string) => Promise<
 // ---------- safe markdown ----------
 export interface ArticleImage { id: string; alt: string; href?: string }
 export interface Heading { id: string; text: string; level: 2 | 3 }
-export interface RenderCtx { images: ArticleImage[]; imageUrl: (id: string, w: number) => string; videoHtml?: string }
+export interface RenderCtx { images: ArticleImage[]; imageUrl: (id: string, w: number) => string; videoHtml?: string; siteBase?: string }
 
 const SAFE_URL = /^(?:\/(?!\/)[^\s"'<>\\]*|https?:\/\/[^\s"'<>\\]+)$/
 
-/** Inline formatting. Order matters: links are lifted out FIRST (validated), everything else is HTML-escaped, then bold is applied. */
-export function renderInline(raw: string): string {
+/** One safe <a>. The site's own addresses are ordinary links (same tab, followed by search engines); everything else opens in a new tab as nofollow. */
+function anchor(url: string, text: string, siteBase?: string): string {
+  const own = !!siteBase && (url === siteBase || url.startsWith(`${siteBase}/`) || url.startsWith(`${siteBase}?`) || url.startsWith(`${siteBase}#`))
+  const external = /^https?:/i.test(url) && !own
+  return `<a href="${escapeHtml(url)}"${external ? ' rel="nofollow noopener" target="_blank"' : ''}>${escapeHtml(text)}</a>`
+}
+
+/**
+ * Inline formatting. Order matters: links are lifted out FIRST (validated), everything else is HTML-escaped, then bold is applied.
+ * Besides [text](url), a plain https://... written in the text becomes a clickable link too (the AI writer and editors often paste bare addresses).
+ */
+export function renderInline(raw: string, siteBase?: string): string {
   const links: string[] = []
-  const withTokens = raw.replace(/\[([^\]\n]{1,200})\]\(([^)\s]{1,500})\)/g, (_m, text: string, url: string) => {
-    if (!SAFE_URL.test(url)) return text // javascript:, data:, //evil.com ... are dropped, the words stay
-    const external = /^https?:/i.test(url)
-    links.push(`<a href="${escapeHtml(url)}"${external ? ' rel="nofollow noopener" target="_blank"' : ''}>${escapeHtml(text)}</a>`)
-    return `\u0000${links.length - 1}\u0000`
-  })
+  const lift = (html: string): string => { links.push(html); return `\u0000${links.length - 1}\u0000` }
+  const withTokens = raw
+    .replace(/\[([^\]\n]{1,200})\]\(([^)\s]{1,500})\)/g, (_m, text: string, url: string) => {
+      if (!SAFE_URL.test(url)) return text // javascript:, data:, //evil.com ... are dropped, the words stay
+      return lift(anchor(url, text, siteBase))
+    })
+    .replace(/https?:\/\/[^\s<>"'\u0000)\]،؛]+/g, (m) => {
+      const url = m.replace(/[.,;:!?؟]+$/, '') // sentence punctuation right after the address is not part of it
+      const tail = m.slice(url.length)
+      return SAFE_URL.test(url) ? lift(anchor(url, url, siteBase)) + tail : m
+    })
   return escapeHtml(withTokens).replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>').replace(/\u0000(\d+)\u0000/g, (_m, i: string) => links[Number(i)] ?? '')
 }
 
@@ -53,14 +68,15 @@ const stripInline = (s: string): string => s.replace(/\[([^\]]*)\]\([^)]*\)/g, '
 
 /** Renders the restricted markdown the editor and the AI use. Anything it does not recognise is plain escaped text, never HTML. */
 export function renderMarkdown(md: string, ctx: RenderCtx): { html: string; headings: Heading[] } {
+  const inline = (t: string): string => renderInline(t, ctx.siteBase)
   const out: string[] = []
   const headings: Heading[] = []
   const used = new Set<string>()
   const headingId = (text: string): string => { let id = arabicSlug(text, 50) || 'قسم'; let n = 2; const base = id; while (used.has(id)) id = `${base}-${n++}`; used.add(id); return id }
   let list: { tag: 'ul' | 'ol'; items: string[] } | null = null
   let para: string[] = []
-  const flushPara = () => { if (para.length) { out.push(`<p>${renderInline(para.join(' '))}</p>`); para = [] } }
-  const flushList = () => { if (list) { out.push(`<${list.tag}>${list.items.map((i) => `<li>${renderInline(i)}</li>`).join('')}</${list.tag}>`); list = null } }
+  const flushPara = () => { if (para.length) { out.push(`<p>${inline(para.join(' '))}</p>`); para = [] } }
+  const flushList = () => { if (list) { out.push(`<${list.tag}>${list.items.map((i) => `<li>${inline(i)}</li>`).join('')}</${list.tag}>`); list = null } }
   const flush = () => { flushPara(); flushList() }
   for (const line0 of md.replace(/\r\n?/g, '\n').split('\n')) {
     const line = line0.trim()
@@ -72,7 +88,7 @@ export function renderMarkdown(md: string, ctx: RenderCtx): { html: string; head
       const text = stripInline(m[2]).trim()
       const id = headingId(text)
       headings.push({ id, text, level })
-      out.push(`<h${level} id="${escapeHtml(id)}">${renderInline(m[2])}</h${level}>`)
+      out.push(`<h${level} id="${escapeHtml(id)}">${inline(m[2])}</h${level}>`)
     } else if ((m = /^\{\{image:(\d{1,2})\}\}$/.exec(line))) {
       flush()
       const img = ctx.images[Number(m[1]) - 1]
@@ -88,7 +104,7 @@ export function renderMarkdown(md: string, ctx: RenderCtx): { html: string; head
     } else if ((m = /^\d{1,2}[.)]\s+(.+)$/.exec(line))) {
       flushPara(); if (list?.tag !== 'ol') { flushList(); list = { tag: 'ol', items: [] } } list.items.push(m[1])
     } else if ((m = /^>\s?(.+)$/.exec(line))) {
-      flush(); out.push(`<blockquote><p>${renderInline(m[1])}</p></blockquote>`)
+      flush(); out.push(`<blockquote><p>${inline(m[1])}</p></blockquote>`)
     } else if (/^-{3,}$/.test(line)) {
       flush(); out.push('<hr>')
     } else { flushList(); para.push(line) }
