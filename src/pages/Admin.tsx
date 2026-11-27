@@ -216,7 +216,7 @@ function UsersTab() {
     try {
       const base = collection(db, 'users')
       const s = await getDocs(email ? query(base, where('email', '==', email), limit(10)) : query(base, orderBy('createdAt', 'desc'), limit(50)))
-      setUsers(s.docs.map((d) => { const x = d.data(); return { uid: d.id, displayName: String(x.displayName ?? ''), email: String(x.email ?? ''), role: x.role === 'admin' ? 'admin' : 'user', accountType: x.accountType === 'broker' ? 'broker' : 'owner', banned: !!x.banned, verified: !!x.verified, createdAt: ts(x.createdAt) } }))
+      setUsers(s.docs.map((d) => { const x = d.data(); return { uid: d.id, displayName: String(x.displayName ?? ''), email: String(x.email ?? ''), role: x.role === 'admin' ? 'admin' : 'user', accountType: x.accountType === 'broker' ? 'broker' : 'owner', banned: !!x.banned, verified: !!x.verified, badgeHidden: !!x.badgeHidden, createdAt: ts(x.createdAt) } }))
     } catch (e) { setErr(e) }
   }, [])
   useEffect(() => { void load() }, [load])
@@ -226,7 +226,7 @@ function UsersTab() {
       await updateDoc(doc(db, 'users', u.uid), data)
       if ('verified' in data) { // keep denormalised badge on the user's ads in sync (first 200 ads)
         const s = await getDocs(query(collection(db, 'units'), where('ownerId', '==', u.uid), limit(200)))
-        for (let i = 0; i < s.docs.length; i += 100) { const b = writeBatch(db); s.docs.slice(i, i + 100).forEach((d) => b.update(d.ref, { ownerVerified: data.verified })); await b.commit() }
+        for (let i = 0; i < s.docs.length; i += 100) { const b = writeBatch(db); s.docs.slice(i, i + 100).forEach((d) => b.update(d.ref, { ownerVerified: data.verified === true && !u.badgeHidden })); await b.commit() }
       }
       await logAudit(action, 'user', u.uid, data)
       setUsers((p) => p?.map((x) => (x.uid === u.uid ? { ...x, ...data } : x)) ?? null)

@@ -16,6 +16,8 @@ export interface UserDoc {
   accountType: AccountType
   banned: boolean
   verified: boolean
+  /** The member chose to hide their verified badge (the verification itself stays). */
+  badgeHidden?: boolean
   createdAt: Date | null
   /** Paid broker plan (set by the server when an admin approves a payment). */
   plan?: { id: string; name: string; until: Date; revealLimit: number; maxAds: number } | null

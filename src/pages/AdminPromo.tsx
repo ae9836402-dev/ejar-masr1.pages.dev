@@ -94,6 +94,13 @@ function SettingsForm() {
 
   return (
     <div className="space-y-6">
+      <section className={`panel flex flex-wrap items-center gap-3 p-5 ${s.enabled ? '' : 'border-danger'}`}>
+        <div className="min-w-0 flex-1">
+          <h2 className="text-lg font-semibold">الدفع للترويج والباقات: <span className={s.enabled ? 'text-nile' : 'text-danger'}>{s.enabled ? 'شغّال' : 'متوقف'}</span></h2>
+          <p className="text-sm text-mute">لما يتوقف، صفحة الباقات بتقول «متوقف مؤقتًا» ومحدش يقدر يبعت طلب جديد. اللي اتفعّل قبل كده بيكمّل لحد انتهائه.</p>
+        </div>
+        <button type="button" className={s.enabled ? 'btn-ghost text-danger' : 'btn-primary'} disabled={busy} onClick={() => { const next = { ...s, enabled: !s.enabled }; setS(next); void (async () => { setBusy(true); try { await setDoc(doc(db, 'settings', 'promo'), normalizePromo(next)); resetPromoSettings(); toast.ok(next.enabled ? 'الدفع اتفتح' : 'الدفع اتقفل') } catch { setS(s); toast.err('ماقدرناش نحفظ') } finally { setBusy(false) } })() }}>{s.enabled ? 'إيقاف الدفع' : 'تشغيل الدفع'}</button>
+      </section>
       <section className="panel space-y-3 p-5">
         <h2 className="text-lg font-semibold">أرقام الدفع (بتظهر للعملاء)</h2>
         <div className="grid gap-3 sm:grid-cols-3">

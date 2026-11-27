@@ -32,7 +32,7 @@ function toProfile(uid: string, d: Record<string, unknown>): UserDoc {
     displayName: String(d.displayName ?? ''), email: String(d.email ?? ''),
     role: d.role === 'admin' ? 'admin' : 'user',
     accountType: d.accountType === 'broker' ? 'broker' : 'owner',
-    banned: d.banned === true, verified: d.verified === true,
+    banned: d.banned === true, verified: d.verified === true, badgeHidden: d.badgeHidden === true,
     createdAt: d.createdAt instanceof Timestamp ? d.createdAt.toDate() : null,
     plan: planOf(d.plan),
   }

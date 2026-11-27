@@ -36,6 +36,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
     if (body.action === 'request') {
       const promo = await loadPromo(env)
+      if (!promo.enabled) throw new HttpError(503, 'promo-off', 'الدفع للإعلانات المميزة والباقات متوقف مؤقتًا')
       if (!promo.vodafoneCash && !promo.instapay) throw new HttpError(503, 'promo-not-configured', 'الدفع لسه مش متفعّل. جرّب بعد شوية')
       const parsed = parseRequest(body)
       if (typeof parsed === 'string') throw new HttpError(400, 'bad-request', parsed)

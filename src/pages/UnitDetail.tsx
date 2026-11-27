@@ -1,4 +1,5 @@
 import { showVerified } from '../lib/promo'
+import { usePaySettings } from '../lib/rentals'
 import { Suspense, lazy, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ar } from '../i18n/ar'
@@ -37,6 +38,7 @@ export default function UnitDetail() {
   const [reveal, setRevealErr] = useState('')
   const [reporting, setReporting] = useState(false)
   const [renting, setRenting] = useState(false)
+  const paySettings = usePaySettings()
 
   useEffect(() => {
     let alive = true
@@ -187,7 +189,8 @@ export default function UnitDetail() {
             )}
             {reveal && <p className="text-sm text-danger" role="alert">{reveal}</p>}
             {unit.status === 'active' && !isOwner && (user ? (
-              <button type="button" className="btn-primary w-full" disabled={banned || !profile} onClick={() => setRenting(true)}>{rt.request}</button>
+              <button type="button" className="btn-primary w-full" disabled={banned || !profile || !paySettings.paymentsEnabled} onClick={() => setRenting(true)}>{rt.request}</button>
+              {!paySettings.paymentsEnabled && <p className="mt-1 text-sm text-mute" role="status">الإيجار والدفع الإلكتروني متوقف مؤقتًا. تقدر تتواصل مع المالك مباشرة.</p>}
             ) : (
               <Link className="btn-primary w-full" to="/login" state={{ from: `/unit/${unit.id}` }}>{rt.loginFirst}</Link>
             ))}

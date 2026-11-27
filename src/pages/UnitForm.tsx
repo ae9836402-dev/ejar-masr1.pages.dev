@@ -131,7 +131,7 @@ export default function UnitForm() {
         const ref = doc(collection(db, 'units'))
         const days = settings.defaultAdDays
         batch.set(ref, {
-          ...editable, ownerId: user.uid, ownerName: profile.displayName, ownerType: profile.accountType, ownerVerified: profile.verified, ownerPlanUntil: profile.plan ? Timestamp.fromDate(profile.plan.until) : null,
+          ...editable, ownerId: user.uid, ownerName: profile.displayName, ownerType: profile.accountType, ownerVerified: profile.verified && !profile.badgeHidden, ownerPlanUntil: profile.plan ? Timestamp.fromDate(profile.plan.until) : null,
           status: 'active', hiddenByAdmin: false, durationMode: 'default', createdAt: serverTimestamp(),
           expiresAt: days > 0 ? Timestamp.fromDate(addDays(new Date(), days - 1 / 1440)) : null,
         })

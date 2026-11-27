@@ -25,6 +25,7 @@ export default function AdminPayments() {
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
       <h1 className="font-display text-3xl">{rt.adminPayments}</h1>
+      <MasterSwitch />
       <div className="mt-4 flex flex-wrap gap-2" role="tablist">
         {tabs.map(([k, l]) => <button key={k} role="tab" aria-selected={tab === k} type="button" className={tab === k ? 'btn-primary !py-1.5' : 'btn-ghost !py-1.5'} onClick={() => setTab(k)}>{l}</button>)}
       </div>
@@ -37,6 +38,28 @@ export default function AdminPayments() {
         {tab === 'leases' && <LeasesTab />}
         {tab === 'sweep' && <SweepTab />}
       </div>
+    </div>
+  )
+}
+
+/** One-click on/off for online rent payments (no need to open the settings form). Existing leases keep their data; only NEW requests and new checkouts are refused while it is off. */
+function MasterSwitch() {
+  const toast = useToast()
+  const [on, setOn] = useState<boolean | null>(null)
+  const [busy, setBusy] = useState(false)
+  useEffect(() => { resetPaySettings(); void loadPaySettings().then((p) => setOn(p.paymentsEnabled)) }, [])
+  if (on === null) return null
+  async function flip() {
+    const next = !on
+    if (!next && !window.confirm('إيقاف الدفع الإلكتروني؟ طلبات الإيجار الجديدة ودفع الأقساط هيتوقفوا لحد ما تشغّله تاني.')) return
+    setBusy(true)
+    try { await setDoc(doc(db, 'settings', 'payments'), { paymentsEnabled: next, updatedAt: serverTimestamp() }, { merge: true }); resetPaySettings(); setOn(next); toast.ok(next ? 'الدفع الإلكتروني اتفتح' : 'الدفع الإلكتروني اتقفل') } catch { toast.err(ar.errors.generic) } finally { setBusy(false) }
+  }
+  return (
+    <div className={`panel mt-4 flex flex-wrap items-center gap-3 p-4 ${on ? '' : 'border-danger'}`} role="status">
+      <p className="min-w-0 flex-1">الدفع الإلكتروني للإيجار: <b className={on ? 'text-nile' : 'text-danger'}>{on ? 'شغّال' : 'متوقف'}</b>
+        <span className="block text-sm text-mute">{on ? 'المستأجرين يقدروا يطلبوا ويدفعوا.' : 'زرار «اطلب استئجار» بيظهر متوقف، ودفع الأقساط الجديدة مقفول. العقود والبيانات الحالية محفوظة، والمدفوعات اللي بدأت قبل الإيقاف بتتسجّل عادي.'} التغيير بيسري خلال نص دقيقة تقريبًا.</span></p>
+      <button type="button" className={on ? 'btn-ghost text-danger' : 'btn-primary'} disabled={busy} onClick={() => void flip()}>{on ? 'إيقاف الدفع' : 'تشغيل الدفع'}</button>
     </div>
   )
 }

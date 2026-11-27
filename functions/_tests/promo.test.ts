@@ -40,6 +40,12 @@ describe('POST /api/promo: requests (nothing changes until an admin approves)', 
     w.db.seed('settings/promo', { ...SETTINGS, instapay: '' }); resetPromoCache()
     expect((await ask(OWNER, featuredReq({ method: 'instapay', reference: 'IP-123456' }))).json.error).toBe('method-off')
   })
+  it('answers 503 while the master switch is off, and the shop reopens when it is turned back on', async () => {
+    ready({ ...SETTINGS, enabled: false })
+    expect((await ask(OWNER, featuredReq())).json.error).toBe('promo-off')
+    w.db.seed('settings/promo', SETTINGS); resetPromoCache()
+    expect((await ask(OWNER, featuredReq())).status).toBe(200)
+  })
   it('answers 503 until payment numbers are configured', async () => {
     ready(null)
     expect((await ask(OWNER, featuredReq())).json.error).toBe('promo-not-configured')

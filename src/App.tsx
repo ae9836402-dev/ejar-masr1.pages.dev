@@ -23,6 +23,7 @@ const AdminArticles = lazy(() => import('./pages/AdminArticles'))
 const AdminPayments = lazy(() => import('./pages/AdminPayments'))
 const Promote = lazy(() => import('./pages/Promote'))
 const AdminPromo = lazy(() => import('./pages/AdminPromo'))
+const AdminIds = lazy(() => import('./pages/AdminIds'))
 const StaticPage = lazy(() => import('./pages/StaticPage'))
 const NotFound = lazy(() => import('./pages/NotFound'))
 
@@ -51,6 +52,7 @@ export default function App() {
             <Route path="admin" element={<RequireAuth admin><Admin /></RequireAuth>} />
             <Route path="admin/articles" element={<RequireAuth admin><AdminArticles /></RequireAuth>} />
             <Route path="plans" element={<Promote />} />
+            <Route path="admin/ids" element={<RequireAuth admin><AdminIds /></RequireAuth>} />
             <Route path="admin/promo" element={<RequireAuth admin><AdminPromo /></RequireAuth>} />
             <Route path="admin/payments" element={<RequireAuth admin><AdminPayments /></RequireAuth>} />
             {(['about', 'terms', 'privacy', 'safety', 'contact'] as const).map((p) => <Route key={p} path={p} element={<StaticPage page={p} />} />)}

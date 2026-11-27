@@ -12,6 +12,8 @@ describe('normalizePromo', () => {
     expect(p.vodafoneCash).toBe('0101 b'); expect(p.featured.days).toBe(90); expect(p.featured.priceGov).toBe(1)
     expect(p.plans.map((x) => x.id)).toEqual(['ok']); expect(p.plans[0].price).toBe(300)
     expect(normalizePromo(undefined)).toEqual({ ...DEFAULT_PROMO, plans: DEFAULT_PROMO.plans })
+    expect(normalizePromo({ enabled: false }).enabled).toBe(false) // an explicit off switch is kept
+    expect(normalizePromo({}).enabled).toBe(true) // missing = on, so existing settings keep working
   })
 })
 

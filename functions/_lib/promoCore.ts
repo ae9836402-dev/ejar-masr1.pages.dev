@@ -7,6 +7,8 @@
 
 export interface Plan { id: string; name: string; price: number; days: number; revealLimit: number; /** 0 = unlimited */ maxAds: number }
 export interface PromoSettings {
+  /** Master switch for ALL paid promotion (featured ads and plans). Off = the plans page shows "closed" and new requests are refused; what was already approved keeps running. */
+  enabled: boolean
   vodafoneCash: string; instapay: string; payeeName: string
   featured: { enabled: boolean; days: number; priceGov: number; priceAll: number }
   plans: Plan[]
@@ -15,6 +17,7 @@ export interface PromoSettings {
 }
 
 export const DEFAULT_PROMO: PromoSettings = {
+  enabled: true,
   vodafoneCash: '', instapay: '', payeeName: '',
   featured: { enabled: true, days: 7, priceGov: 100, priceAll: 250 },
   plans: [
@@ -47,6 +50,7 @@ export function normalizePromo(raw: unknown): PromoSettings {
     return [{ id, name: str(x.name, 40) || id, price: num(x.price, 1, 1_000_000, 300), days: num(x.days, 1, 366, 30), revealLimit: num(x.revealLimit, 1, 100_000, 60), maxAds: num(x.maxAds, 0, 100_000, 30) }]
   }).slice(0, 6)
   return {
+    enabled: o.enabled !== false,
     vodafoneCash: str(o.vodafoneCash, 20), instapay: str(o.instapay, 60), payeeName: str(o.payeeName, 60),
     featured: { enabled: f.enabled !== false, days: num(f.days, 1, 90, DEFAULT_PROMO.featured.days), priceGov: num(f.priceGov, 1, 1_000_000, DEFAULT_PROMO.featured.priceGov), priceAll: num(f.priceAll, 1, 1_000_000, DEFAULT_PROMO.featured.priceAll) },
     plans,

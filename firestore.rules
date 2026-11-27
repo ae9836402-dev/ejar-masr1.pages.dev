@@ -107,7 +107,7 @@ service cloud.firestore {
         && !request.resource.data.keys().hasAny(['lockedUntil', 'rentedUntil', 'rentedLeaseId', 'featuredUntil', 'featuredScope'])
         // The badge period copied onto a new ad must be exactly the one on the owner's profile (set by the server when a plan is approved).
         && request.resource.data.get('ownerPlanUntil', null) == me().get('plan', {'until': null}).get('until', null)
-        && request.resource.data.ownerVerified == me().get('verified', false)
+        && request.resource.data.ownerVerified == (me().get('verified', false) && !me().get('badgeHidden', false))
         && request.resource.data.ownerType == me().accountType
         && request.resource.data.createdAt == request.time
         && expiryOk(request.resource.data);
@@ -161,6 +161,13 @@ service cloud.firestore {
       allow write: if false;
     }
     match /promoRefs/{id} { allow read, write: if false; }
+
+    // ---------- identity verification: status is readable by its owner and admins; the photos (idImages) by NO client, only /api/id-verify ----------
+    match /idVerifications/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+      allow write: if false;
+    }
+    match /idImages/{uid} { allow read, write: if false; }
 
     // ---------- reports ----------
     match /reports/{id} {

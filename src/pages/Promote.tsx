@@ -50,6 +50,7 @@ export default function Promote() {
   const amount = target.kind === 'featured' ? (scope === 'all' ? p.featured.priceAll : p.featured.priceGov) : plan?.price ?? 0
   const payTo = method === 'vodafone' ? p.vodafoneCash : p.instapay
   const configured = !!(p.vodafoneCash || p.instapay)
+  const closed = !p.enabled
   const current = activePlanOf(profile)
 
   async function submit(ev: React.FormEvent) {
@@ -105,7 +106,7 @@ export default function Promote() {
 
       <section className="panel mt-8 p-5">
         <h2 className="text-xl font-semibold">الدفع وإرسال الطلب</h2>
-        {!configured ? <p className="mt-2 text-mute">الدفع لسه مش متفعّل. جرّب بعد شوية.</p> : !user ? <p className="mt-2">سجّل دخولك الأول: <Link className="underline" to="/login">تسجيل الدخول</Link></p> : (
+        {closed ? <p className="mt-2 rounded-field border border-line p-3 text-mute" role="status">الدفع للإعلانات المميزة والباقات متوقف مؤقتًا. جرّب بعد شوية.</p> : !configured ? <p className="mt-2 text-mute">الدفع لسه مش متفعّل. جرّب بعد شوية.</p> : !user ? <p className="mt-2">سجّل دخولك الأول: <Link className="underline" to="/login">تسجيل الدخول</Link></p> : (
           <form className="mt-3 space-y-4" onSubmit={(e) => void submit(e)}>
             <p className="font-medium">
               {target.kind === 'featured' ? `إعلان مميز (${scope === 'all' ? 'كل مصر' : 'المحافظة'}) · ${p.featured.days} أيام` : `باقة ${plan?.name ?? ''} · ${plan?.days ?? 0} يوم`} — المطلوب: <span className="text-nile">{money(amount)}</span>
