@@ -179,3 +179,12 @@ describe('the scheduler', () => {
     expect((await readArticle(env(), 'مقال-مجدول-بعد-ساعة'))?.status).toBe('scheduled')
   })
 })
+
+describe('ensureSiteLink', () => {
+  it('adds one link to the site (as {{site}}) and never duplicates it', async () => {
+    const { ensureSiteLink } = await import('./articleService')
+    const once = ensureSiteLink('## عنوان\n\nنص.')
+    expect(once).toContain('({{site}}/search)')
+    expect(ensureSiteLink(once)).toBe(once)
+  })
+})

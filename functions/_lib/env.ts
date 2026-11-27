@@ -16,6 +16,8 @@ export interface Env {
   PAYMOB_PUBLIC_KEY?: string
   PAYMOB_INTEGRATION_IDS?: string // comma-separated card/wallet integration ids
   PAYMOB_HMAC_SECRET?: string
+  /** Optional: IndexNow key (8-128 letters/digits/dashes). Enables instant "new page" pings to Bing/Yandex and serves /indexnow-key.txt. */
+  INDEXNOW_KEY?: string
   CRON_SECRET?: string // protects POST /api/sweep (daily job)
   RESEND_API_KEY?: string // transactional email (resend.com free tier)
   EMAIL_FROM?: string // e.g. "إيجار مصر <noreply@your-domain.com>"

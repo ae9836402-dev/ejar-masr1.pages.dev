@@ -14,9 +14,8 @@ describe('coordinates', () => {
 })
 
 describe('tiles', () => {
-  it('light and dark use the matching CARTO styles with retina support, and subdomains for parallel loading', () => {
-    expect(tilesFor(false).url).toContain('/voyager/'); expect(tilesFor(true).url).toContain('/dark_all/')
-    for (const d of [false, true]) { const t = tilesFor(d); expect(t.url).toContain('{r}'); expect(t.subdomains).toBe('abcd'); expect(t.attribution).toContain('OpenStreetMap'); expect(t.attribution).toContain('CARTO') }
+  it('uses key-free OpenStreetMap tiles in light and dark (dark is done with CSS)', () => {
+    for (const d of [false, true]) { const t = tilesFor(d); expect(t.url).toBe('https://tile.openstreetmap.org/{z}/{x}/{y}.png'); expect(t.attribution).toContain('OpenStreetMap'); expect(t.url).not.toContain('carto') }
   })
   it('keeps plain OpenStreetMap as a fallback, with its own attribution', () => { expect(FALLBACK_TILES.url).toBe('https://tile.openstreetmap.org/{z}/{x}/{y}.png'); expect(FALLBACK_TILES.attribution).toContain('OpenStreetMap') })
 })

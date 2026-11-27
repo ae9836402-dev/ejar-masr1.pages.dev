@@ -6,6 +6,7 @@ import { fmtPrice } from '../lib/format'
 import { images } from '../lib/images'
 import { toggleCompare, useCompareIds } from '../lib/compare'
 import type { Unit } from '../lib/types'
+import { isFeaturedUnit, showVerified } from '../lib/promo'
 import { Badge } from './ui'
 
 export function UnitCard({ unit }: { unit: Unit }) {
@@ -23,9 +24,10 @@ export function UnitCard({ unit }: { unit: Unit }) {
       </Link>
       <div className="space-y-2 p-4">
         <div className="flex flex-wrap items-center gap-1.5">
+          {isFeaturedUnit(unit) && <Badge tone="sand">⭐ مميز</Badge>}
           <Badge tone="nile">{unit.typeName}</Badge>
           {unit.ownerType === 'broker' && <Badge tone="sand">{ar.unit.broker}</Badge>}
-          {unit.ownerVerified && <Badge tone="sand">{ar.unit.verified}</Badge>}
+          {showVerified(unit) && <Badge tone="sand">{ar.unit.verified}</Badge>}
         </div>
         <h3 className="line-clamp-2 text-base font-semibold"><Link to={`/unit/${unit.id}`}>{unit.title}</Link></h3>
         <p className="text-lg font-bold text-nile">{fmtPrice(unit.price, unit.rentType)}</p>

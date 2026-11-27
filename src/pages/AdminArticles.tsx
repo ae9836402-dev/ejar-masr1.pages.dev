@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { newBankTopics } from '../../functions/_lib/keywordBank'
+import { MAX_TOPICS } from '../../functions/_lib/topicLimits'
 import { useSettings } from '../contexts/SettingsContext'
 import { useToast } from '../contexts/ToastContext'
 import { apiPost } from '../lib/api'
@@ -460,10 +462,16 @@ function AutoTab() {
     const lines = bulk.split('\n').map((l) => l.replace(/^\s*(?:[-*•]|\d+\s*[.)\-:])\s*/, '').replace(/\s+/g, ' ').trim().slice(0, 120)).filter((l) => l.length >= 3 && !have.has(l))
     const fresh = Array.from(new Set(lines)).map((topic) => ({ topic, govId: bulkGov, typeId: bulkType }))
     if (!fresh.length) { toast.err('مفيش عناوين جديدة (أو كلها مكررة)'); return }
-    const room = 300 - s.topics.length
+    const room = MAX_TOPICS - s.topics.length
     up('topics', [...s.topics, ...fresh.slice(0, room)])
     setBulk('')
-    toast.ok(fresh.length > room ? `اتضاف ${room} عنوان بس (الحد 300). افتكر تضغط حفظ الإعدادات` : `اتضاف ${Math.min(fresh.length, room)} عنوان. افتكر تضغط حفظ الإعدادات`)
+    toast.ok(fresh.length > room ? `اتضاف ${room} عنوان بس (الحد ${MAX_TOPICS}). افتكر تضغط حفظ الإعدادات` : `اتضاف ${Math.min(fresh.length, room)} عنوان. افتكر تضغط حفظ الإعدادات`)
+  }
+  const addBank = () => {
+    const fresh = newBankTopics(s.topics, MAX_TOPICS - s.topics.length)
+    if (!fresh.length) { toast.err('البنك كله موجود في القائمة (أو القائمة اتملت)'); return }
+    up('topics', [...s.topics, ...fresh])
+    toast.ok(`اتضاف ${fresh.length} موضوع من بنك الكلمات. افتكر تضغط حفظ الإعدادات`)
   }
   const setTopic = (i: number, p: Partial<Topic>) => up('topics', s.topics.map((t, j) => (j === i ? { ...t, ...p } : t)))
 
@@ -499,12 +507,13 @@ function AutoTab() {
       </div>
 
       <fieldset className="panel space-y-3 p-5">
-        <legend className="px-1 font-display">قائمة العناوين ({s.topics.length}/300)</legend>
-        <p className="text-sm text-mute">الصق عناوينك هنا، كل عنوان في سطر (لحد 300). الموقع بيكتب مقال لكل سطر بالترتيب، ومقال واحد في كل مرة حسب المدة اللي حددتها فوق. كل عنوان بيتحول لمقال بعنوان مقارب له والكلمة المفتاحية جواه.</p>
+        <legend className="px-1 font-display">قائمة العناوين ({s.topics.length}/{MAX_TOPICS})</legend>
+        <p className="text-sm text-mute">الصق عناوينك هنا، كل عنوان في سطر (لحد {MAX_TOPICS}). الموقع بيكتب مقال لكل سطر بالترتيب، ومقال واحد في كل مرة حسب المدة اللي حددتها فوق. كل عنوان بيتحول لمقال بعنوان مقارب له والكلمة المفتاحية جواه.</p>
         <textarea className="field min-h-40" dir="rtl" aria-label="الصق العناوين، كل عنوان في سطر" placeholder={'شقق للايجار في مدينة نصر\nإيجار شقة للعرسان في القاهرة\nأخطاء المستأجر قبل توقيع العقد'} value={bulk} onChange={(e) => setBulk(e.target.value)} />
         <GovTypePick govId={bulkGov} typeId={bulkType} onGov={setBulkGov} onType={setBulkType} />
         <div className="flex flex-wrap gap-2">
           <button type="button" className="btn-primary" disabled={!bulk.trim()} onClick={addBulk}>إضافة العناوين للقائمة</button>
+          <button type="button" className="btn-ghost" onClick={addBank} title="شقق للايجار في كل منطقة، مرتبة من الأكتر بحثًا للأقل">+ بنك الكلمات المصري (مناطق ومحافظات)</button>
           {s.topics.length > 0 && <button type="button" className="btn-ghost text-danger" onClick={() => { if (window.confirm('تمسح كل العناوين من القائمة؟')) up('topics', []) }}>مسح القائمة</button>}
         </div>
         <label className="flex items-center gap-3 pt-2"><input type="checkbox" checked={s.loop} onChange={(e) => up('loop', e.target.checked)} /><span>لما العناوين تخلص، ابدأ من الأول بزاوية مختلفة (لو مش مفعّل بيقف بعد آخر عنوان)</span></label>

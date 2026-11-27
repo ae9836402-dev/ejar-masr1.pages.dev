@@ -4,6 +4,7 @@ import { deleteArticle, loadDirectory, readArticle, saveArticle, type ArticleDoc
 import { DEFAULT_ARTICLE_SETTINGS, loadSettings, normalizeSettings } from '../_lib/articleService'
 import { callLLM, clean, pickProvider } from '../_lib/articleAI'
 import { renderArticle } from '../_lib/articlePages'
+import { announceArticle } from '../_lib/indexnow'
 import type { Env } from '../_lib/env'
 import { commitGuarded } from '../_lib/firestore'
 import { HttpError, errorResponse, json, readJson, requireUser } from '../_lib/http'
@@ -92,6 +93,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
           status = 'scheduled'
         }
         await saveArticle(env, { ...a, status, publishAt, publishedAt: status === 'published' ? (a.publishedAt ?? now) : a.publishedAt, updatedAt: now }, { create: false })
+        if (status === 'published') await announceArticle(env, a.slug) // tell Bing/Yandex now (no-op without INDEXNOW_KEY)
         return json({ status })
       }
       case 'preview': { // the exact HTML visitors will get, with a "not published yet" banner and noindex; the admin screen shows it in a sandboxed frame

@@ -17,6 +17,8 @@ export interface UserDoc {
   banned: boolean
   verified: boolean
   createdAt: Date | null
+  /** Paid broker plan (set by the server when an admin approves a payment). */
+  plan?: { id: string; name: string; until: Date; revealLimit: number; maxAds: number } | null
 }
 
 export interface Option { id: string; label: string; plural?: string }
@@ -71,6 +73,11 @@ export interface Unit {
   rentedUntil: string | null
   createdAt: Date | null
   expiresAt: Date | null
+  /** Paid placement (server-written). `gov` = first in its governorate list, `all` = first everywhere. */
+  featuredUntil?: Date | null
+  featuredScope?: 'gov' | 'all' | null
+  /** End of the owner's paid plan, copied onto the ad: the "verified" badge shows while it is in the future. */
+  ownerPlanUntil?: Date | null
 }
 
 export interface LocItem {

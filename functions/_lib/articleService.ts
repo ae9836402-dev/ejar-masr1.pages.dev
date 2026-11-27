@@ -1,4 +1,6 @@
 /** The article pipeline: settings, planning, writing one article, and the automatic scheduler. Everything an admin button or the cron calls. */
+import { MAX_TOPICS } from './topicLimits'
+import { announceArticle } from './indexnow'
 import { AiFormatError, callLLM, defaultLinks, factsText, fetchSuggestions, improvePrompt, parseModelJson, pickProvider, planPrompt, snapshotFacts, validateArticle, validatePlan, writePrompt, WRITER_SYSTEM, autoPlaceImages, type PlanItem, type PlanMode, type Written, type WriteCtx } from './articleAI'
 import { analyzeArticle, minhash, sigSimilarity } from './articleQuality'
 import { arabicSlug, uniqueSlug } from './articleText'
@@ -40,7 +42,7 @@ export function normalizeSettings(d: Record<string, unknown> | undefined): Artic
     const g = typeof o.govId === 'string' && GOVS.some((v) => v.id === o.govId) ? o.govId : ''
     const ty = typeof o.typeId === 'string' && /^[a-z0-9-]{1,30}$/.test(o.typeId) ? o.typeId : ''
     return [{ topic, govId: g, typeId: ty }]
-  }).slice(0, 300)
+  }).slice(0, MAX_TOPICS)
   return {
     enabled: x.enabled === true, mode: x.mode === 'auto' ? 'auto' : 'review', everyHours: num(x.everyHours, 1, 168, 24), dailyMax: num(x.dailyMax, 1, 8, 2), minScore: num(x.minScore, 60, 95, 80),
     topics: topics.length ? topics : DEFAULT_TOPICS, cursor: num(x.cursor, 0, 1_000_000, 0), loop: x.loop === true, lastRunAt: x.lastRunAt instanceof Date ? x.lastRunAt.getTime() : null,
@@ -88,6 +90,11 @@ export function ensureInternalLinks(body: string, links: { path: string; hint: s
   if (!extra.length) return body
   return `${body.trimEnd()}\n\n## روابط تفيدك في بحثك\n\n${extra.map((l) => `- [${l.hint}](${l.path})`).join('\n')}\n`
 }
+/** Every generated article ends with a link to the site itself. `{{site}}` becomes the current domain when the page is rendered (so a domain change needs no edits). Added by code: the model's text is stripped of `{{...}}`. */
+export function ensureSiteLink(body: string): string {
+  if (body.includes('{{site}}')) return body
+  return `${body.trimEnd()}\n\nتقدر تدوّر على وحدتك وتتواصل مع المالك مباشرة من خلال [موقع إيجار مصر]({{site}}/search).\n`
+}
 /** Search results cut descriptions around 160 characters: trim a long one at a word boundary instead of letting it be penalised. */
 export function fitDescription(d: string): string {
   const s = d.replace(/\s+/g, ' ').trim()
@@ -108,12 +115,12 @@ export async function writeArticle(env: Env, p: WriteParams): Promise<WriteResul
   const prompt = writePrompt(ctx)
   const t0 = Date.now()
   let written: Written
-  try { written = validateArticle(parseModelJson(await callLLM(env, { system: WRITER_SYSTEM, user: prompt, maxTokens: 8000, temperature: 0.85 }))) } catch (e) {
+  try { written = validateArticle(parseModelJson(await callLLM(env, { system: WRITER_SYSTEM, user: prompt, maxTokens: 8000, temperature: 0.75 }))) } catch (e) {
     if (!(e instanceof AiFormatError)) throw e
     try { written = validateArticle(parseModelJson(await callLLM(env, { system: WRITER_SYSTEM, user: `${prompt}\n\nتنبيه: التزم بالهيكل كاملًا (مقدمة، 5 أقسام على الأقل، خاتمة، أسئلة شائعة) وأخرج JSON صالحًا فقط.`, maxTokens: 8000, temperature: 0.6 }))) } catch { throw new HttpError(502, 'ai-format', 'الـ AI رجّع مقال ناقص أو بصيغة غير صالحة. جرّب تاني') }
   }
   // Quality pass: if the first draft misses the target, ask the model once to fix exactly what the checker found, and keep whichever version scores higher.
-  const rate = (w: Written) => analyzeArticle({ title: w.title, description: fitDescription(w.description), slug: arabicSlug(p.item.primary), body: ensureInternalLinks(w.body, links), primary: p.item.primary, secondary: p.item.secondary, faq: w.faq, images: [] })
+  const rate = (w: Written) => analyzeArticle({ title: w.title, description: fitDescription(w.description), slug: arabicSlug(p.item.primary), body: ensureInternalLinks(w.body, links), primary: p.item.primary, secondary: p.item.secondary, faq: w.faq, images: [], facts: ctx.facts })
   const first = rate(written)
   const target = Math.max(p.minScore + 5, 85)
   const spent = Date.now() - t0
@@ -126,12 +133,12 @@ export async function writeArticle(env: Env, p: WriteParams): Promise<WriteResul
   const photos = listingImages(snap, p.govId, p.typeId)
   const cover = photos[0] ?? null
   const bodyImages = photos.slice(1)
-  const body = ensureInternalLinks(autoPlaceImages(written.body, bodyImages.length), links)
+  const body = ensureSiteLink(ensureInternalLinks(autoPlaceImages(written.body, bodyImages.length), links))
   const description = fitDescription(written.description)
   const taken = async (x: string) => dir.entries.some((e) => e.slug === x)
   const firstChoice = arabicSlug(p.item.primary) // the words people search for
   const slug = firstChoice && !(await taken(firstChoice)) ? firstChoice : await uniqueSlug(arabicSlug(written.title) || firstChoice, taken) // then the title, then -2, -3
-  const quality = analyzeArticle({ title: written.title, description, slug, body, primary: p.item.primary, secondary: p.item.secondary, faq: written.faq, images: [...(cover ? [cover] : []), ...bodyImages] })
+  const quality = analyzeArticle({ title: written.title, description, slug, body, primary: p.item.primary, secondary: p.item.secondary, faq: written.faq, images: [...(cover ? [cover] : []), ...bodyImages], facts: ctx.facts })
   const sig = minhash(body)
   const near = dir.entries.filter((e) => e.slug !== slug).map((e) => ({ slug: e.slug, score: Math.round(sigSimilarity(sig, e.sig) * 100) / 100 })).sort((a, b) => b.score - a.score)[0]
   const similarTo = near && near.score >= 0.2 ? near : null
@@ -148,6 +155,7 @@ export async function writeArticle(env: Env, p: WriteParams): Promise<WriteResul
     createdAt: p.now, updatedAt: p.now, score: quality.score, issues, similarTo, ai: { provider: prov.provider, model: prov.model },
   }
   const entry = await saveArticle(env, article, { create: true })
+  if (published) await announceArticle(env, article.slug)
   return { article, entry, published, why }
 }
 
@@ -168,7 +176,7 @@ export async function runArticleCron(env: Env, now: Date): Promise<CronResult> {
     const publishAt = d.data.publishAt instanceof Date ? d.data.publishAt.getTime() : 0
     if (publishAt && publishAt <= now.getTime()) {
       const a = await readArticle(env, d.id)
-      if (a) { await saveArticle(env, { ...a, status: 'published', publishedAt: now, updatedAt: now }, { create: false }); res.published++ }
+      if (a) { await saveArticle(env, { ...a, status: 'published', publishedAt: now, updatedAt: now }, { create: false }); res.published++; await announceArticle(env, a.slug) }
     }
   }
   // 2) automatic writing

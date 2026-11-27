@@ -34,6 +34,7 @@ export function mapUnit(id: string, d: DocumentData): Unit {
     depositMode: d.depositMode === 'held-claim' || d.depositMode === 'held-auto' ? d.depositMode : 'none',
     lockedUntil: toDate(d.lockedUntil), rentedUntil: typeof d.rentedUntil === 'string' ? d.rentedUntil : null,
     createdAt: toDate(d.createdAt), expiresAt: toDate(d.expiresAt),
+    featuredUntil: toDate(d.featuredUntil), featuredScope: d.featuredScope === 'all' ? 'all' : d.featuredScope === 'gov' ? 'gov' : null, ownerPlanUntil: toDate(d.ownerPlanUntil),
   }
 }
 

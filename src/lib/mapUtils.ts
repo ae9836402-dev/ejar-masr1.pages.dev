@@ -9,16 +9,16 @@ export const roundCoord = (n: number): number => Math.round(n * 1e6) / 1e6
 export const toPin = (lat: number, lng: number): Pin => ({ lat: roundCoord(lat), lng: roundCoord(lng) })
 
 export interface TileSet { url: string; attribution: string; maxZoom: number; subdomains: string; retina: boolean }
-const ATTR = '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/attributions">CARTO</a>'
+const OSM_ATTR = '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
 /**
- * CARTO's basemaps are drawn for web maps: clear streets, readable Arabic labels, sharp on phones ({r} = retina), and a dark version that matches the
- * site's dark theme. OpenStreetMap's own tiles stay as the automatic fallback if CARTO is unreachable.
+ * OpenStreetMap's standard tiles: free and need no API key. (CARTO's raster basemaps now stamp "API KEY REQUIRED" over every tile, and that is an image
+ * that loads fine, so no tile error fires and no fallback happens.) There is no dark OSM style, so dark mode darkens these tiles with CSS (see index.css).
  */
-export const tilesFor = (dark: boolean): TileSet => ({
-  url: `https://{s}.basemaps.cartocdn.com/rastertiles/${dark ? 'dark_all' : 'voyager'}/{z}/{x}/{y}{r}.png`,
-  attribution: ATTR, maxZoom: 20, subdomains: 'abcd', retina: true,
+export const tilesFor = (dark: boolean): TileSet => (void dark, {
+  url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+  attribution: OSM_ATTR, maxZoom: 19, subdomains: 'abc', retina: false,
 })
-export const FALLBACK_TILES: TileSet = { url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>', maxZoom: 19, subdomains: 'abc', retina: false }
+export const FALLBACK_TILES: TileSet = { url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', attribution: OSM_ATTR, maxZoom: 19, subdomains: 'abc', retina: false }
 
 /** Opens the exact point in Google Maps (directions, street view, satellite): the easiest way for a visitor to double-check a location. */
 export const googleMapsUrl = (p: Pin): string => `https://www.google.com/maps/search/?api=1&query=${p.lat},${p.lng}`

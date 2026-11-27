@@ -8,9 +8,11 @@ import { useAuth } from '../contexts/AuthContext'
 import { useSettings } from '../contexts/SettingsContext'
 import { useToast } from '../contexts/ToastContext'
 import { db } from '../lib/firebase'
-import { PHONE_RE, addDays } from '../lib/format'
+import { PHONE_RE, addDays, isExpired } from '../lib/format'
+import { adLimit } from '../lib/promo'
+import { loadPromoSettings } from '../lib/promoStore'
 import { usePageMeta } from '../lib/seo'
-import { getUnit } from '../lib/units'
+import { getUnit, ownerUnits } from '../lib/units'
 import { collection } from 'firebase/firestore'
 import type { Audience, DepositMode, RentType } from '../lib/types'
 import { Empty, ErrorBox, Field, Spinner } from '../components/ui'
@@ -95,6 +97,14 @@ export default function UnitForm() {
     if (!user || !profile || !validate()) return
     setBusy(true)
     try {
+      // Ad cap for accounts without a paid plan (set in Admin > promotion; 0 = unlimited). Checked here in the form, see docs/PROMO.md.
+      if (!editing && !isAdmin) {
+        const cap = adLimit(profile, await loadPromoSettings())
+        if (cap > 0) {
+          const live = (await ownerUnits(user.uid)).filter((u) => u.status === 'active' && !isExpired(u.expiresAt)).length
+          if (live >= cap) { toast.err(`وصلت للحد الأقصى (${cap} إعلانات نشطة). اشترك في باقة سمسار عشان تنشر أكتر، أو أخفِ إعلان قديم.`); return }
+        }
+      }
       const type = settings.unitTypes.find((x) => x.id === f.typeId)
       const gov = locations.govById[f.govId]
       const area = locations.areaById[f.areaId]
@@ -121,7 +131,7 @@ export default function UnitForm() {
         const ref = doc(collection(db, 'units'))
         const days = settings.defaultAdDays
         batch.set(ref, {
-          ...editable, ownerId: user.uid, ownerName: profile.displayName, ownerType: profile.accountType, ownerVerified: profile.verified,
+          ...editable, ownerId: user.uid, ownerName: profile.displayName, ownerType: profile.accountType, ownerVerified: profile.verified, ownerPlanUntil: profile.plan ? Timestamp.fromDate(profile.plan.until) : null,
           status: 'active', hiddenByAdmin: false, durationMode: 'default', createdAt: serverTimestamp(),
           expiresAt: days > 0 ? Timestamp.fromDate(addDays(new Date(), days - 1 / 1440)) : null,
         })

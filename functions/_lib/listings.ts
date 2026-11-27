@@ -14,6 +14,7 @@ import type { Env } from './env'
 import { edgeCached } from './edgeLimit'
 import { commit, getDocument, runQuery } from './firestore'
 import { toWire } from './wire'
+import { isFeaturedFor } from './promoCore'
 
 export const SNAPSHOT_LIMIT = 300
 const DAILY_READ_BUDGET = 12_000
@@ -58,7 +59,10 @@ const tsOf = (v: unknown): number | null => (v && typeof v === 'object' && typeo
 /** Filters, orders and pages the snapshot in memory. Order and cursor match the indexed queries exactly (value, then id in the same direction). */
 export function pageFromSnapshot(snap: Snapshot, q: PageQuery): { docs: WireDoc[]; next: { v: number; id: string } | null } {
   const desc = q.sort !== 'priceAsc'
-  const valueOf = (d: WireDoc): number => (q.sort === 'newest' ? tsOf(d.data.createdAt) ?? 0 : Number(d.data.price) || 0)
+  // Paid (featured) ads come first. This is done by shifting their sort value far past every real value (timestamps ~1.7e12, prices far smaller),
+  // so the same value+id cursor keeps working across pages with no change to the API.
+  const FEATURED_SHIFT = 1e15
+  const valueOf = (d: WireDoc): number => (q.sort === 'newest' ? tsOf(d.data.createdAt) ?? 0 : Number(d.data.price) || 0) + (isFeaturedFor(d.data, q.now, q.gov) ? (desc ? FEATURED_SHIFT : -FEATURED_SHIFT) : 0)
   const rows = snap.units
     .filter((d) => (!q.gov || d.data.governorateId === q.gov) && (!q.rent || d.data.rentType === q.rent))
     .filter((d) => { const exp = tsOf(d.data.expiresAt); return exp === null || exp > q.now })

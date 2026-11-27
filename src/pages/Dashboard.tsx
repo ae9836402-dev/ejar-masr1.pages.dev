@@ -13,6 +13,7 @@ import { Badge, Empty, ErrorBox, Spinner } from '../components/ui'
 import { OwnerLeases } from '../components/OwnerLeases'
 import { OwnerOverview } from '../components/OwnerOverview'
 import { rt } from '../i18n/rent'
+import { isFeaturedUnit } from '../lib/promo'
 import { fmtYmd, loadRentals, type RentalsData } from '../lib/rentals'
 
 interface Stats { views: number; reveals: number }
@@ -91,6 +92,7 @@ export default function Dashboard() {
                     <p className="text-sm text-mute">{fmtPrice(u.price, u.rentType)} · {u.governorateName} — {u.areaName}</p>
                     <p className="mt-1 flex flex-wrap gap-2 text-xs">
                       <Badge tone={u.status === 'active' && !expired ? 'nile' : 'plain'}>{expired ? ar.dash.expired : statusLabel(u)}</Badge>
+                      {isFeaturedUnit(u) && u.featuredUntil && <Badge tone="sand">⭐ مميز حتى {fmtDate(u.featuredUntil)}</Badge>}
                       {u.hiddenByAdmin && <Badge tone="sand">{ar.dash.hiddenByAdmin}</Badge>}
                       {u.rentedUntil && u.status === 'rented' && <Badge tone="sand">{rt.rentedUntil} {fmtYmd(u.rentedUntil)}</Badge>}
                       <span className="text-mute">{u.expiresAt ? `${ar.dash.validUntil} ${fmtDate(u.expiresAt)}` : ar.dash.noExpiry}</span>
@@ -103,6 +105,7 @@ export default function Dashboard() {
                   </dl>
                   <div className="flex flex-wrap gap-2 text-sm">
                     <Link className="btn-ghost !py-1.5" to={`/dashboard/units/${u.id}/edit`}>{ar.common.edit}</Link>
+                    {u.status === 'active' && !expired && <Link className="btn-ghost !py-1.5" to={`/plans?unit=${u.id}`}>{isFeaturedUnit(u) ? '⭐ جدّد التمييز' : '⭐ ميّز الإعلان'}</Link>}
                     {!locked && u.status === 'active' && <button type="button" className="btn-ghost !py-1.5" onClick={() => void setStatus(u, 'hidden')}>{ar.dash.hide}</button>}
                     {!locked && u.status === 'hidden' && !u.hiddenByAdmin && <button type="button" className="btn-ghost !py-1.5" onClick={() => void setStatus(u, 'active')}>{ar.dash.show}</button>}
                     {!locked && u.status !== 'rented' && u.status !== 'removed' && <button type="button" className="btn-ghost !py-1.5" onClick={() => void setStatus(u, 'rented')}>{ar.dash.markRented}</button>}

@@ -104,7 +104,9 @@ service cloud.firestore {
         && request.resource.data.status == 'active'
         && request.resource.data.hiddenByAdmin == false
         && request.resource.data.durationMode == 'default'
-        && !request.resource.data.keys().hasAny(['lockedUntil', 'rentedUntil', 'rentedLeaseId'])
+        && !request.resource.data.keys().hasAny(['lockedUntil', 'rentedUntil', 'rentedLeaseId', 'featuredUntil', 'featuredScope'])
+        // The badge period copied onto a new ad must be exactly the one on the owner's profile (set by the server when a plan is approved).
+        && request.resource.data.get('ownerPlanUntil', null) == me().get('plan', {'until': null}).get('until', null)
         && request.resource.data.ownerVerified == me().get('verified', false)
         && request.resource.data.ownerType == me().accountType
         && request.resource.data.createdAt == request.time
@@ -112,7 +114,7 @@ service cloud.firestore {
       allow update: if isAdmin()
         || (isActiveUser() && resource.data.ownerId == request.auth.uid
           && resource.data.status != 'removed'
-          && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['ownerId', 'createdAt', 'expiresAt', 'durationMode', 'ownerVerified', 'hiddenByAdmin', 'lockedUntil', 'rentedUntil', 'rentedLeaseId'])
+          && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['ownerId', 'createdAt', 'expiresAt', 'durationMode', 'ownerVerified', 'hiddenByAdmin', 'lockedUntil', 'rentedUntil', 'rentedLeaseId', 'featuredUntil', 'featuredScope', 'ownerPlanUntil'])
           && !(lockedNow() && request.resource.data.status != resource.data.status)
           && request.resource.data.status in ['active', 'hidden', 'rented']
           && !(resource.data.hiddenByAdmin == true && request.resource.data.status == 'active')
@@ -152,6 +154,13 @@ service cloud.firestore {
         && resource.data.payoutStatus == 'pending' && request.resource.data.payoutStatus == 'paid'; // the admin can only record a transfer of released money; escrow (held) money is released only by the tenant's confirmation
       allow create, delete: if false;
     }
+
+    // ---------- paid promotion (featured ads, broker plans): requests are written only by /api/promo; people read their own ----------
+    match /promoRequests/{id} {
+      allow read: if signedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow write: if false;
+    }
+    match /promoRefs/{id} { allow read, write: if false; }
 
     // ---------- reports ----------
     match /reports/{id} {

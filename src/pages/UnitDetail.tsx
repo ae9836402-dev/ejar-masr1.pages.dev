@@ -1,3 +1,4 @@
+import { showVerified } from '../lib/promo'
 import { Suspense, lazy, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ar } from '../i18n/ar'
@@ -154,7 +155,7 @@ export default function UnitDetail() {
             <div className="flex flex-wrap gap-1.5">
               <Badge tone="nile">{unit.typeName}</Badge>
               {unit.ownerType === 'broker' ? <Badge tone="sand">{ar.unit.broker}</Badge> : <Badge>{ar.unit.owner}</Badge>}
-              {unit.ownerVerified && <Badge tone="sand">{ar.unit.verified}</Badge>}
+              {showVerified(unit) && <Badge tone="sand">{ar.unit.verified}</Badge>}
             </div>
             <h1 className="font-display text-2xl">{unit.title}</h1>
             <p className="text-2xl font-bold text-nile">{fmtPrice(unit.price, unit.rentType)}</p>

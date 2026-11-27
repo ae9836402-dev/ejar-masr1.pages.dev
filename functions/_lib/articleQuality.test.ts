@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest'
-import { BANNED_PHRASES, analyzeArticle, countPhrase, mostSimilar, similarity, type QualityInput } from './articleQuality'
+import { BANNED_PHRASES, analyzeArticle, countPhrase, factualNumbers, mostSimilar, similarity, type QualityInput } from './articleQuality'
 
 const POOL = [
   'المعاينة بالنهار بتكشف عيوب مش بتبان بالليل، زي الرطوبة في الأركان وضغط المياه.',
@@ -91,4 +91,20 @@ describe('minhash fingerprints', () => {
     expect(sigSimilarity(minhash(a), minhash('عائلة صغيرة بتدور على شقة هادية جنب مدرسة وبتحسب الميزانية بالشهر والسنة وبتسأل الجيران عن الكهرباء والمياه والأمان بالليل والمواصلات القريبة والأسواق'))).toBeLessThan(0.15)
   })
   it('refuses to compare fingerprints of the wrong size', () => { expect(sigSimilarity([1, 2], [1, 2])).toBe(0); expect(sigSimilarity([], minhash(a))).toBe(0) })
+})
+
+describe('content-quality checks', () => {
+  it('factualNumbers keeps prices/percentages, ignores small counts and years, and unifies Arabic digits', () => {
+    expect(factualNumbers('٢٥٠٠ جنيه و 2,500 ونسبة 15% وفي 2026 و5 خطوات').sort()).toEqual(['15', '2500'])
+  })
+  it('flags figures that are not in the site data, and stays silent when no facts are passed or the figure is real', () => {
+    const withNumber = good({ body: `${body(30)}\n\nالإيجار حوالي 4500 جنيه.` })
+    expect(analyzeArticle(withNumber).issues.some((i) => i.includes('أرقام مش موجودة'))).toBe(false)
+    expect(analyzeArticle({ ...withNumber, facts: 'الوسيط حوالي 3000 جنيه.' }).issues.some((i) => i.includes('أرقام مش موجودة'))).toBe(true)
+    expect(analyzeArticle({ ...withNumber, facts: 'الوسيط حوالي 4500 جنيه.' }).issues.some((i) => i.includes('أرقام مش موجودة'))).toBe(false)
+  })
+  it('flags paragraphs that all open with the same word', () => {
+    const mono = ['مقدمة قصيرة [ابحث](/search) [القاهرة](/rent/cairo)', ...Array.from({ length: 10 }, (_, i) => `لو بتدور على سكن رقم ${i} فابدأ بالمعاينة.`)].join('\n\n')
+    expect(analyzeArticle(good({ body: mono })).issues.some((i) => i.includes('بتبدأ بنفس الكلمة'))).toBe(true)
+  })
 })

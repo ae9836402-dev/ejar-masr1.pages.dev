@@ -6,11 +6,14 @@ export const BANNED_PHRASES = [
   'في عالمنا اليوم', 'في عصرنا الحالي', 'في عصرنا الحديث', 'في ظل التطور', 'لا شك أن', 'مما لا شك فيه', 'لا يخفى على أحد', 'من الجدير بالذكر', 'ومن الجدير بالذكر',
   'يعد من أهم', 'تعد من أهم', 'يعتبر من أهم', 'تعتبر من أبرز', 'في الختام', 'خلاصة القول', 'سنتناول في هذا المقال', 'في هذا المقال سوف', 'في هذا المقال سنتعرف', 'دعونا نتعرف',
   'رحلة البحث', 'حجر الزاوية', 'بلا منازع', 'لا غنى عنه', 'كما أسلفنا', 'عالم من الفرص', 'ثورة حقيقية', 'يمثل نقطة تحول',
+  'لا يمكن إنكار', 'يلعب دورا حيويا', 'يلعب دورًا حيويًا', 'يلعب دورًا محوريًا', 'في ظل الظروف الراهنة', 'سواء كنت مستأجرا أو مالكا', 'مفتاح النجاح', 'خطوة نحو مستقبل أفضل',
 ]
 
 export interface QualityInput {
   title: string; description: string; slug: string; body: string; primary: string; secondary: string[]
   faq: { q: string; a: string }[]; images: { alt: string }[]
+  /** The site-data text the writer was given. When present, any price/count in the article that is not in it is flagged as invented. */
+  facts?: string
 }
 export interface Quality {
   score: number
@@ -23,6 +26,22 @@ export function countPhrase(text: string, phrase: string): number {
   const p = norm(phrase).trim()
   if (!p) return 0
   return norm(text).split(p).length - 1
+}
+
+
+/** Western digits, so "٢٥٠٠" and "2500" compare equal. */
+const westernDigits = (s: string): string => s.replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d))).replace(/(\d)[,٬](?=\d{3}(?!\d))/g, '$1')
+/** Numbers a reader would take as a fact (3+ digits, or a percentage), minus plausible years. Small numbers ("3 أسئلة", "5 خطوات") are ignored. */
+export function factualNumbers(text: string): string[] {
+  const out = new Set<string>()
+  for (const m of westernDigits(text).matchAll(/\d+(?:\.\d+)?\s*%?/g)) {
+    const raw = m[0].trim(); const n = Number(raw.replace('%', ''))
+    if (!Number.isFinite(n)) continue
+    const isYear = Number.isInteger(n) && n >= 1990 && n <= 2100 && !raw.includes('%')
+    if (isYear) continue
+    if (raw.includes('%') || n >= 100) out.add(raw.replace('%', '').replace(/\.0+$/, ''))
+  }
+  return [...out]
 }
 
 /** 0-100 score plus a list of concrete, Arabic, fixable problems. */
@@ -57,6 +76,7 @@ export function analyzeArticle(a: QualityInput): Quality {
   for (const h of h2) { const w = norm(h.text).split(' ')[0]; starts.set(w, (starts.get(w) ?? 0) + 1) }
   if ([...starts.values()].some((n) => n >= 3)) hit(4, 'عناوين كتير بتبدأ بنفس الكلمة. نوّع الصياغة')
   if (primary && !countPhrase(firstWords, primary)) hit(8, 'الكلمة المفتاحية مش موجودة في أول 120 كلمة')
+  if (primary && words >= 300 && !countPhrase(text.split(' ').slice(-180).join(' '), primary)) hit(3, 'الكلمة المفتاحية مش موجودة في الخاتمة (آخر فقرات المقال)')
   if (primary && !h2.some((h) => countPhrase(h.text, primary))) hit(5, 'الكلمة المفتاحية مش موجودة في أي عنوان فرعي')
   if (density > 2.5) hit(10, `الكلمة المفتاحية متكررة بزيادة (${density}%). المطلوب أقل من 2%`)
   else if (density > 1.8) hit(4, `تكرار الكلمة المفتاحية عالي (${density}%)`)
@@ -72,6 +92,20 @@ export function analyzeArticle(a: QualityInput): Quality {
   if (long) hit(Math.min(9, long * 3), `${long} فقرة طويلة جدًا. قسّمها`)
   const sentences = text.split(/[.!؟?]+\s/).filter((s) => s.trim())
   if (sentences.length && words / sentences.length > 28) hit(4, 'الجمل طويلة بشكل عام')
+
+  // Content-quality checks (beyond SEO mechanics): invented figures and monotonous paragraph openings.
+  if (a.facts !== undefined) {
+    const known = new Set(factualNumbers(a.facts))
+    const invented = factualNumbers(`${a.body}\n${a.faq.map((f) => `${f.q} ${f.a}`).join('\n')}`).filter((n) => !known.has(n))
+    if (invented.length) hit(Math.min(15, invented.length * 5), `أرقام مش موجودة في بيانات الموقع (احذفها أو اكتب الكلام بشكل عام): ${invented.slice(0, 4).join('، ')}`)
+  }
+  const paras = a.body.split(/\n\s*\n/).map((p) => p.trim()).filter((p) => p && !/^(#|-|\d|>|\{\{|!\[)/.test(p))
+  if (paras.length >= 8) {
+    const opens = new Map<string, number>()
+    for (const p of paras) { const w = norm(p).split(' ')[0]; if (w) opens.set(w, (opens.get(w) ?? 0) + 1) }
+    const [word, n] = [...opens.entries()].sort((x, y) => y[1] - x[1])[0]
+    if (n >= 5 && n / paras.length >= 0.4) hit(4, `فقرات كتير بتبدأ بنفس الكلمة («${word}»). نوّع بداية الفقرات`)
+  }
 
   return { score: Math.max(0, score), issues, stats: { words, h2: h2.length, density, primaryCount, internalLinks: links, banned: bannedHits } }
 }

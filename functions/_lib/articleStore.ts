@@ -1,4 +1,4 @@
-/** Storage for blog articles. The article body lives in articles/{slug}; ONE small directory document lists every article (for the admin list, the public index, duplicate checks and sibling links). */
+/** Storage for blog articles. The article body lives in articles/{slug}; a directory (one document, or a few once there are hundreds of articles) lists every article for the admin list, the public index, duplicate checks and sibling links. */
 import { edgePurge } from './edgeLimit'
 import type { Env } from './env'
 import { commitGuarded, getDocument, type Write } from './firestore'
@@ -20,7 +20,16 @@ export interface DirEntry {
 }
 
 export const DIR_PATH = 'articleMeta/directory'
-export const MAX_ARTICLES = 600
+/**
+ * The directory is split over up to DIR_SHARDS documents: one Firestore document holds about 1 MB, which is roughly 500 entries (an entry is ~1.7 KB, mostly
+ * its 64-number duplicate fingerprint). Shard 0 is the original document and also records how many shards exist (`n`), so a site with few articles still
+ * reads exactly ONE document. New articles go to the first shard with room; an existing article stays in its shard.
+ */
+export const DIR_SHARDS = 6
+export const SHARD_BUDGET = 800_000 // bytes of JSON per shard (the hard limit is 1,048,487), leaving room for growth when an article is edited
+export const MAX_ARTICLES = 2500 // 6 shards x ~800 KB at ~1.7 KB per entry is about 2,800, so this stays safely under
+const shardPath = (i: number): string => (i === 0 ? DIR_PATH : `${DIR_PATH}-${i + 1}`)
+const jsonBytes = (entries: DirEntry[]): number => new TextEncoder().encode(JSON.stringify({ entries })).length
 const ms = (d: unknown): number | null => (d instanceof Date ? d.getTime() : null)
 const dt = (d: unknown): Date | null => (d instanceof Date ? d : null)
 
@@ -32,11 +41,20 @@ export function toEntry(a: ArticleDoc): DirEntry {
   }
 }
 
-export interface Directory { entries: DirEntry[]; updateTime?: string; exists: boolean }
+interface Shard { path: string; entries: DirEntry[]; updateTime?: string; exists: boolean }
+export interface Directory { entries: DirEntry[]; updateTime?: string; exists: boolean; shards: Shard[]; n: number }
+const parseEntries = (d: { data: Record<string, unknown> } | null): DirEntry[] => {
+  if (!d || typeof d.data.json !== 'string') return []
+  try { return (JSON.parse(d.data.json) as { entries: DirEntry[] }).entries ?? [] } catch { return [] }
+}
 export async function loadDirectory(env: Env): Promise<Directory> {
-  const d = await getDocument(env, DIR_PATH)
-  if (!d || typeof d.data.json !== 'string') return { entries: [], exists: !!d, updateTime: d?.updateTime }
-  try { return { entries: (JSON.parse(d.data.json) as { entries: DirEntry[] }).entries ?? [], exists: true, updateTime: d.updateTime } } catch { return { entries: [], exists: true, updateTime: d.updateTime } }
+  const first = await getDocument(env, shardPath(0))
+  const n = Math.min(DIR_SHARDS, Math.max(1, Number(first?.data.n) || 1))
+  const rest = await Promise.all(Array.from({ length: n - 1 }, (_, k) => getDocument(env, shardPath(k + 1))))
+  const shards: Shard[] = [first, ...rest].map((d, i) => ({ path: shardPath(i), entries: parseEntries(d), updateTime: d?.updateTime, exists: !!d }))
+  const seen = new Set<string>()
+  const entries = shards.flatMap((sh) => sh.entries).filter((e) => (seen.has(e.slug) ? false : (seen.add(e.slug), true))).sort((x, y) => y.createdAt - x.createdAt)
+  return { entries, updateTime: shards[0].updateTime, exists: shards[0].exists, shards, n }
 }
 
 const img = (v: unknown): ArticleImage | null => { const o = v as Record<string, unknown> | null; return o && typeof o.id === 'string' ? { id: o.id, alt: String(o.alt ?? ''), ...(typeof o.href === 'string' && o.href ? { href: o.href } : {}) } : null }
@@ -71,22 +89,45 @@ function toData(a: ArticleDoc): Record<string, unknown> {
 export async function saveArticle(env: Env, a: ArticleDoc, o: { create: boolean; prevSlug?: string }): Promise<DirEntry> {
   const dir = await loadDirectory(env)
   const entry = toEntry(a)
-  const others = dir.entries.filter((e) => e.slug !== a.slug && e.slug !== o.prevSlug)
-  if (others.length >= MAX_ARTICLES) throw new Error(`article limit ${MAX_ARTICLES} reached`)
-  const writes: Write[] = [o.create || (o.prevSlug && o.prevSlug !== a.slug) ? { kind: 'create', path: `articles/${a.slug}`, data: toData(a) } : { kind: 'upsert', path: `articles/${a.slug}`, data: toData(a) }]
-  if (o.prevSlug && o.prevSlug !== a.slug) writes.push({ kind: 'delete', path: `articles/${o.prevSlug}` })
-  const json = JSON.stringify({ entries: [entry, ...others].sort((x, y) => y.createdAt - x.createdAt) })
-  writes.push(dir.exists ? { kind: 'upsert', path: DIR_PATH, data: { json, updatedAt: new Date() } } : { kind: 'create', path: DIR_PATH, data: { json, updatedAt: new Date() } })
-  await commitGuarded(env, writes, { [DIR_PATH]: dir.updateTime })
+  const renamed = !!o.prevSlug && o.prevSlug !== a.slug
+  if (dir.entries.filter((e) => e.slug !== a.slug && e.slug !== o.prevSlug).length >= MAX_ARTICLES) throw new Error(`article limit ${MAX_ARTICLES} reached`)
+  const lists: DirEntry[][] = Array.from({ length: DIR_SHARDS }, (_, i) => dir.shards[i]?.entries ?? [])
+  const homeOf = (slug: string): number => lists.findIndex((l) => l.some((e) => e.slug === slug))
+  const touched = new Set<number>()
+  const drop = (slug: string): number => { const h = homeOf(slug); if (h >= 0) { lists[h] = lists[h].filter((e) => e.slug !== slug); touched.add(h) } return h }
+  if (renamed) drop(o.prevSlug as string)
+  const home = drop(a.slug)
+  // an edited article stays where it is if it still fits; otherwise (or when new) it goes to the first shard with room
+  const fits = (i: number): boolean => jsonBytes([entry, ...lists[i]]) <= SHARD_BUDGET
+  const target = home >= 0 && fits(home) ? home : lists.findIndex((_, i) => fits(i))
+  if (target < 0) throw new Error('article directory is full')
+  lists[target] = [entry, ...lists[target]]
+  touched.add(target)
+  const n = Math.max(dir.n, target + 1)
+
+  const writes: Write[] = [o.create || renamed ? { kind: 'create', path: `articles/${a.slug}`, data: toData(a) } : { kind: 'upsert', path: `articles/${a.slug}`, data: toData(a) }]
+  if (renamed) writes.push({ kind: 'delete', path: `articles/${o.prevSlug}` })
+  const guards: Record<string, string | undefined> = {}
+  const grew = n > dir.n
+  for (const i of [...new Set([...touched, ...(grew ? [0] : [])])].sort((x, y) => x - y)) {
+    const sh = dir.shards[i]
+    const data: Record<string, unknown> = touched.has(i) ? { json: JSON.stringify({ entries: [...lists[i]].sort((x, y) => y.createdAt - x.createdAt) }), updatedAt: new Date() } : {}
+    if (i === 0 && grew) data.n = n // the first shard records how many shards exist
+    writes.push(sh?.exists ? { kind: 'upsert', path: shardPath(i), data } : { kind: 'create', path: shardPath(i), data })
+    guards[shardPath(i)] = sh?.updateTime
+  }
+  await commitGuarded(env, writes, guards)
   await purgeArticle(a.slug); if (o.prevSlug) await purgeArticle(o.prevSlug)
   return entry
 }
 
 export async function deleteArticle(env: Env, slug: string): Promise<boolean> {
   const dir = await loadDirectory(env)
-  if (!dir.entries.some((e) => e.slug === slug)) return false
-  const json = JSON.stringify({ entries: dir.entries.filter((e) => e.slug !== slug) })
-  await commitGuarded(env, [{ kind: 'delete', path: `articles/${slug}` }, { kind: 'upsert', path: DIR_PATH, data: { json, updatedAt: new Date() } }], { [DIR_PATH]: dir.updateTime })
+  const home = dir.shards.findIndex((sh) => sh.entries.some((e) => e.slug === slug))
+  if (home < 0) return false
+  const sh = dir.shards[home]
+  const json = JSON.stringify({ entries: sh.entries.filter((e) => e.slug !== slug) })
+  await commitGuarded(env, [{ kind: 'delete', path: `articles/${slug}` }, { kind: 'upsert', path: sh.path, data: { json, updatedAt: new Date() } }], { [sh.path]: sh.updateTime })
   await purgeArticle(slug)
   return true
 }

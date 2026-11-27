@@ -46,6 +46,8 @@ export function Layout() {
                 <NavLink to="/rentals" className={linkCls}>{rt.nav}</NavLink>
                 <NavLink to="/dashboard" className={linkCls}>{ar.nav.dashboard}</NavLink>
                 {isAdmin && <NavLink to="/admin" className={linkCls}>{ar.nav.admin}</NavLink>}
+                <NavLink to="/plans" className={linkCls}>الباقات</NavLink>
+                {isAdmin && <NavLink to="/admin/promo" className={linkCls}>الترويج</NavLink>}
                 {isAdmin && <NavLink to="/admin/payments" className={linkCls}>{rt.adminPayments}</NavLink>}
                 {isAdmin && <NavLink to="/admin/articles" className={linkCls}>{ar.nav.adminArticles}</NavLink>}
                 <button type="button" className="btn-ghost" onClick={() => void signOut()}>{ar.nav.logout}</button>
@@ -68,6 +70,8 @@ export function Layout() {
                 <NavLink to="/rentals" className={linkCls} onClick={close}>{rt.nav}</NavLink>
                 <NavLink to="/dashboard" className={linkCls} onClick={close}>{ar.nav.dashboard}</NavLink>
                 {isAdmin && <NavLink to="/admin" className={linkCls} onClick={close}>{ar.nav.admin}</NavLink>}
+                <NavLink to="/plans" className={linkCls} onClick={close}>الباقات</NavLink>
+                {isAdmin && <NavLink to="/admin/promo" className={linkCls} onClick={close}>الترويج</NavLink>}
                 {isAdmin && <NavLink to="/admin/payments" className={linkCls} onClick={close}>{rt.adminPayments}</NavLink>}
                 {isAdmin && <NavLink to="/admin/articles" className={linkCls} onClick={close}>{ar.nav.adminArticles}</NavLink>}
                 <button type="button" className="rounded-field px-3 py-2 text-start hover:bg-line/60" onClick={() => { close(); void signOut() }}>{ar.nav.logout}</button>

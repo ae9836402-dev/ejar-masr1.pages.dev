@@ -22,3 +22,12 @@ export const newestDay = (docs: WireDoc[]): string | undefined => { const t = do
 
 export const rentWord = (d: WireDoc): string => (d.data.rentType === 'daily' ? 'يوم' : 'شهر')
 export const cardText = (d: WireDoc): string => `${String(d.data.title ?? '').slice(0, 80)} — ${Number(d.data.price)} جنيه / ${rentWord(d)}`
+
+/** Published articles to link from a governorate page: that governorate's own first, then general ones, newest first. (Hub -> article links help both rank.) */
+export function articlesForGov(entries: { slug: string; title: string; status: string; govId: string; publishedAt: number | null }[], govId: string, n = 4): { slug: string; title: string }[] {
+  const live = entries.filter((e) => e.status === 'published')
+  const newest = (a: { publishedAt: number | null }, b: { publishedAt: number | null }): number => (b.publishedAt ?? 0) - (a.publishedAt ?? 0)
+  const own = live.filter((e) => e.govId === govId).sort(newest)
+  const general = live.filter((e) => e.govId === '').sort(newest)
+  return [...own, ...general].slice(0, n).map((e) => ({ slug: e.slug, title: e.title }))
+}

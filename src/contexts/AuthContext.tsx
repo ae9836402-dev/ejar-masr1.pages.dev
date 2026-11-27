@@ -34,7 +34,14 @@ function toProfile(uid: string, d: Record<string, unknown>): UserDoc {
     accountType: d.accountType === 'broker' ? 'broker' : 'owner',
     banned: d.banned === true, verified: d.verified === true,
     createdAt: d.createdAt instanceof Timestamp ? d.createdAt.toDate() : null,
+    plan: planOf(d.plan),
   }
+}
+
+function planOf(v: unknown): UserDoc['plan'] {
+  const p = (v ?? null) as Record<string, unknown> | null
+  if (!p || !(p.until instanceof Timestamp)) return null
+  return { id: String(p.id ?? ''), name: String(p.name ?? ''), until: p.until.toDate(), revealLimit: Number(p.revealLimit) || 0, maxAds: Number(p.maxAds) || 0 }
 }
 
 async function ensureProfile(u: User): Promise<UserDoc> {

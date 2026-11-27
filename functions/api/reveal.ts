@@ -2,6 +2,7 @@ import type { Env } from '../_lib/env'
 import { commitGuarded, getDocument, type Write } from '../_lib/firestore'
 import { HttpError, errorResponse, json, readJson, requireUser } from '../_lib/http'
 import { cairoDayKey, isExpiredDate, isValidDocId } from '../_lib/logic'
+import { activePlan, revealLimitFor } from '../_lib/promo'
 
 const DEFAULT_LIMIT = 20
 // Accounts younger than 24 h get a smaller allowance: a real new user reveals a handful of numbers, a scraper wants hundreds, and creating
@@ -39,7 +40,9 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     const day = cairoDayKey()
     const created = user.data.createdAt instanceof Date ? user.data.createdAt.getTime() : 0
     const isNew = created > 0 && Date.now() - created < NEW_ACCOUNT_MS
-    const limit = isNew ? Math.min(NEW_ACCOUNT_LIMIT, await dailyLimit(env)) : await dailyLimit(env)
+    const base = await dailyLimit(env)
+    // A member with a paid plan (broker subscription) gets the plan's higher daily limit, and is not held to the new-account allowance.
+    const limit = activePlan(user.data) ? revealLimitFor(user.data, base) : isNew ? Math.min(NEW_ACCOUNT_LIMIT, base) : base
     const logPath = `revealLogs/${user.uid}_${unitId}_${day}`
     const counterPath = `revealCounts/${user.uid}_${day}`
     const already = await getDocument(env, logPath)

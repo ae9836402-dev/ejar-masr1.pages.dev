@@ -5,7 +5,8 @@ import type { Env } from '../_lib/env'
 import { getDocument } from '../_lib/firestore'
 import { getSnapshot } from '../_lib/listings'
 import { renderShell } from '../_lib/pages'
-import { cardText, listingsFor } from '../_lib/seo'
+import { articlesForGov, cardText, listingsFor } from '../_lib/seo'
+import { loadDirectory } from '../_lib/articleStore'
 import { BRAND } from '../../src/lib/brand'
 import { ar } from '../../src/i18n/ar'
 import { LANDING_NOTES } from '../../src/content/landing'
@@ -52,6 +53,8 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env, params })
   let known = false
   try { const snap = await getSnapshot(env); items = listingsFor(snap, gov, type?.id); known = !snap.truncated } catch { /* listings are a bonus, never a reason to fail the page */ }
   const empty = known && items.length === 0
+  let guides: { slug: string; title: string }[] = []
+  try { guides = articlesForGov((await loadDirectory(env)).entries, gov.id) } catch { /* articles are a bonus, never a reason to fail the page */ }
   const shown = items.slice(0, 12)
   const faqs = [ar.landing.faqPrice(gov.name), ar.landing.faqSafe]
   const notes = LANDING_NOTES[gov.slug] ?? []
@@ -75,6 +78,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env, params })
     paragraphs: [description, ...notes],
     sections: [
       ...(shown.length ? [{ h2: `أحدث ${plural || 'الوحدات'} المتاحة في ${gov.name}`, links: shown.map((u) => ({ href: `/unit/${u.id}`, text: cardText(u) })) }] : []),
+      ...(guides.length ? [{ h2: `أدلة ومقالات تفيدك في ${gov.name}`, links: guides.map((g) => ({ href: `/blog/${g.slug}`, text: g.title })) }] : []),
       { h2: ar.landing.other, links: types.filter((t) => t.id !== type?.id).map((t) => ({ href: `/rent/${gov.slug}/${t.id}`, text: `${t.plural ?? t.label} للإيجار في ${gov.name}` })) },
       { h2: `${ar.landing.faqTitle} ${gov.name}`, faqs },
       { h2: ar.landing.near, links: govs.filter((g) => g.slug !== gov.slug).map((g) => ({ href: `/rent/${g.slug}${type ? `/${type.id}` : ''}`, text: type ? `${plural} للإيجار في ${g.name}` : `وحدات للإيجار في ${g.name}` })) },
