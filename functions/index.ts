@@ -20,7 +20,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     '@context': 'https://schema.org',
     '@graph': [
       { '@type': 'WebSite', '@id': `${base}/#website`, url: `${base}/`, name: BRAND, alternateName: [BRAND_EN], inLanguage: 'ar-EG', publisher: { '@id': `${base}/#org` } },
-      { '@type': 'Organization', '@id': `${base}/#org`, name: BRAND, alternateName: [BRAND_EN], url: `${base}/`, logo: `${base}/logo.svg` },
+      { '@type': 'Organization', '@id': `${base}/#org`, name: BRAND, alternateName: [BRAND_EN], url: `${base}/`, logo: { '@type': 'ImageObject', url: `${base}/logo.png`, width: 512, height: 512 } },
       faqJsonLd(h.faq),
     ],
   }

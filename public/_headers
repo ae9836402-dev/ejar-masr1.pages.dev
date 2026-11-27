@@ -20,6 +20,18 @@
 /logo.svg
   Cache-Control: public, max-age=86400
 
+/logo.png
+  Cache-Control: public, max-age=86400
+
+/favicon.ico
+  Cache-Control: public, max-age=86400
+
+/favicon-48.png
+  Cache-Control: public, max-age=86400
+
+/brand/*
+  Cache-Control: public, max-age=2592000
+
 /sw.js
   Cache-Control: no-cache
 

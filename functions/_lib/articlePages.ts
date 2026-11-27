@@ -54,7 +54,7 @@ function shell(env: Env, s: Shell): string {
 <meta property="og:title" content="${escapeHtml(s.title)}"><meta property="og:description" content="${escapeHtml(s.description)}"><meta property="og:url" content="${escapeHtml(s.canonical)}"><meta property="og:image" content="${escapeHtml(image)}">
 ${s.published ? `<meta property="article:published_time" content="${escapeHtml(s.published)}">` : ''}
 <meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="${escapeHtml(s.title)}"><meta name="twitter:description" content="${escapeHtml(s.description)}"><meta name="twitter:image" content="${escapeHtml(image)}">
-<link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="preconnect" href="https://res.cloudinary.com" crossorigin>
+<link rel="icon" href="/favicon.ico" sizes="48x48"><link rel="icon" href="/favicon-48.png" type="image/png" sizes="48x48"><link rel="icon" href="/icon-192.png" type="image/png" sizes="192x192"><link rel="preconnect" href="https://res.cloudinary.com" crossorigin>
 <style>${CSS}</style>
 ${s.jsonLd.map((j) => `<script type="application/ld+json">${safeJsonLd(j)}</script>`).join('\n')}
 </head><body>
@@ -103,7 +103,7 @@ ${rel.articles.length ? `<section><h2>مقالات ممكن تفيدك</h2><div 
   const articleLd = {
     '@context': 'https://schema.org', '@type': 'BlogPosting', headline: a.title, description: a.description, inLanguage: 'ar', mainEntityOfPage: url, url,
     datePublished: published.toISOString(), dateModified: a.updatedAt.toISOString(), ...(coverUrl ? { image: [coverUrl] } : {}), keywords: [a.primary, ...a.secondary].filter(Boolean).join('، '),
-    author: { '@type': 'Organization', name: BRAND, url: base }, publisher: { '@type': 'Organization', name: BRAND, logo: { '@type': 'ImageObject', url: `${base}/logo.svg` } },
+    author: { '@type': 'Organization', name: BRAND, url: base }, publisher: { '@type': 'Organization', name: BRAND, logo: { '@type': 'ImageObject', url: `${base}/logo.png`, width: 512, height: 512 } },
   }
   const ld: unknown[] = [articleLd, { '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: crumbs.map((c, i) => ({ '@type': 'ListItem', position: i + 1, name: c.name, item: c.url })) }]
   if (a.faq.length) ld.push({ '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: a.faq.map((f) => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })) })

@@ -1,7 +1,7 @@
 /* Minimal service worker: it only makes the installed app show a friendly page instead of the browser's "no internet" dinosaur.
    Pages and data are never cached here (listings change all the time, and the site already has its own caching), so nothing can go stale. */
 const OFFLINE = '/offline.html'
-const CACHE = 'ejar-offline-v1'
+const CACHE = 'ejar-offline-v2'
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.add(OFFLINE)).then(() => self.skipWaiting()))

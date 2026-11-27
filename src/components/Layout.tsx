@@ -30,7 +30,7 @@ export function Layout() {
       <header className={`sticky top-0 z-30 border-b backdrop-blur ${royal ? 'border-nile-dark/30 bg-paper/90' : 'border-line bg-paper/95'}`}>
         <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3">
           <Link to="/" className="flex items-center gap-2.5 font-display text-xl font-bold text-ink" onClick={close}>
-            {royal ? <><img src="/design/royal-medallion.webp" alt="" width={40} height={40} className="h-10 w-10 object-contain" /><Wordmark /></> : <><Logo size={38} uid="hdr" />{ar.brand}</>}
+            {royal ? <><img src="/brand/emblem.webp" alt="" width={40} height={40} className="h-10 w-10 object-contain" /><Wordmark /></> : <><Logo size={38} uid="hdr" />{ar.brand}</>}
           </Link>
           <nav className="ms-4 hidden items-center gap-1 md:flex" aria-label="التنقل الرئيسي">
             <NavLink to="/search" className={linkCls}>{ar.nav.search}</NavLink>

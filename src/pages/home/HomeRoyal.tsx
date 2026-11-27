@@ -274,7 +274,7 @@ export function HomeRoyal(d: HomeData) {
       <section className="rh-s rh-cta" id="cta">
         <div className="rh-w">
           <div className="box reveal">
-            <img src="/design/royal-logo.webp" alt="شعار إيجار مصر" width={353} height={520} loading="lazy" />
+            <img src="/brand/emblem-640.webp" alt="شعار إيجار مصر" width={170} height={170} loading="lazy" />
             <h2>{ar.home.ctaTitle}</h2><div className="rh-rule" />
             <p>{ar.home.ctaText}</p>
             <Link to="/dashboard/new" className="btn-primary" style={{ fontSize: 18, padding: '12px 40px' }}>{ar.nav.add}</Link>

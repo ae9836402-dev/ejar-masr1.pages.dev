@@ -35,24 +35,47 @@ function waitMs(env: Env): number {
 }
 
 /**
- * A busy provider (429 / 500 / 503) usually clears in seconds: one retry, and if the same model is still overloaded, one try with a fallback model
- * (AI_FALLBACK_MODEL, default gemini-2.5-flash for Gemini) so a spike on one model does not fail the whole article.
+ * The model to fall back to when the main one is overloaded OR too slow: AI_FALLBACK_MODEL, else gemini-2.5-flash for Gemini. For the 2.5 Flash family
+ * "thinking" is switched off (thinkingBudget 0), which is what makes it answer fast; a level name such as AI_THINKING=low would be rejected by a 2.5 model.
+ */
+export function fallbackFor(env: Env): { model: string; thinking?: Record<string, unknown> } | null {
+  const p = pickProvider(env)
+  if (!p) return null
+  const model = env.AI_FALLBACK_MODEL || (p.provider === 'gemini' ? 'gemini-2.5-flash' : '')
+  if (!model || model === p.model) return null
+  return { model, thinking: p.provider === 'gemini' && /^gemini-2\.5-flash/.test(model) ? { thinkingConfig: { thinkingBudget: 0 } } : undefined }
+}
+
+/**
+ * One call with automatic failover, so a single slow or overloaded model never stops article writing:
+ *  - busy (429 / 500 / 503): one retry, then one try with the fallback model;
+ *  - too slow (timeout): with the default time budget the main model gets 60% of it and the fallback gets the rest (up to ~95 s in total, under
+ *    Cloudflare's ~100 s). An explicit AI_TIMEOUT_SECONDS or timeoutMs means "wait this long", so it is honoured and not split.
  */
 export async function callLLM(env: Env, o: { system: string; user: string; maxTokens: number; temperature?: number; timeoutMs?: number }): Promise<string> {
   const busy = (e: unknown): boolean => e instanceof HttpError && e.code === 'ai' && /\((429|500|503)\)/.test(e.message)
-  try { return await callOnce(env, o) } catch (e) {
+  const timedOut = (e: unknown): boolean => e instanceof HttpError && e.code === 'ai-timeout'
+  const fb = fallbackFor(env)
+  const total = o.timeoutMs ?? waitMs(env)
+  const split = !!fb && o.timeoutMs === undefined && !env.AI_TIMEOUT_SECONDS
+  const first = { ...o, timeoutMs: split ? Math.round(total * 0.6) : total }
+  const started = Date.now()
+  try { return await callOnce(env, first) } catch (e) {
+    if (timedOut(e) && fb && split) return callOnce(env, { ...o, timeoutMs: Math.max(20_000, 95_000 - (Date.now() - started)) }, fb.model, fb.thinking)
     if (!busy(e)) throw e
     await new Promise((r) => setTimeout(r, 3000))
-    try { return await callOnce(env, o) } catch (e2) {
-      const p = pickProvider(env)
-      const fb = env.AI_FALLBACK_MODEL || (p?.provider === 'gemini' ? 'gemini-2.5-flash' : '')
-      if (!busy(e2) || !p || !fb || fb === p.model) throw e2
-      return callOnce(env, o, fb)
+    try { return await callOnce(env, first) } catch (e2) {
+      if (!busy(e2) || !fb) throw e2
+      return callOnce(env, o, fb.model, fb.thinking)
     }
   }
 }
 
-async function callOnce(env: Env, o: { system: string; user: string; maxTokens: number; temperature?: number; timeoutMs?: number }, model?: string): Promise<string> {
+/** Setup diagnostic: one tiny call to a specific model (default: the configured one) with its own time limit. */
+export const probeModel = (env: Env, model: string | undefined, thinking: Record<string, unknown> | undefined, timeoutMs: number): Promise<string> =>
+  callOnce(env, { system: 'Reply with the single word OK.', user: 'ping', maxTokens: 200, temperature: 0, timeoutMs }, model, thinking)
+
+async function callOnce(env: Env, o: { system: string; user: string; maxTokens: number; temperature?: number; timeoutMs?: number }, model?: string, thinking?: Record<string, unknown>): Promise<string> {
   const picked = pickProvider(env)
   const p = picked && model ? { ...picked, model } : picked
   if (!p) throw new HttpError(503, 'ai-not-configured', 'مفيش مفتاح AI مضبوط. ضيف GEMINI_API_KEY أو ANTHROPIC_API_KEY في Cloudflare')
@@ -62,7 +85,7 @@ async function callOnce(env: Env, o: { system: string; user: string; maxTokens: 
   try {
     const res = p.provider === 'anthropic'
       ? await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', signal: ctl.signal, headers: { 'Content-Type': 'application/json', 'x-api-key': p.key, 'anthropic-version': '2023-06-01' }, body: JSON.stringify({ model: p.model, max_tokens: o.maxTokens, temperature: o.temperature ?? 0.8, system: o.system, messages: [{ role: 'user', content: o.user }] }) })
-      : await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(p.model)}:generateContent`, { method: 'POST', signal: ctl.signal, headers: { 'Content-Type': 'application/json', 'x-goog-api-key': p.key }, body: JSON.stringify({ systemInstruction: { parts: [{ text: o.system }] }, contents: [{ role: 'user', parts: [{ text: o.user }] }], generationConfig: { temperature: o.temperature ?? 0.8, maxOutputTokens: o.maxTokens, responseMimeType: 'application/json', ...thinkingConfig(env) } }) })
+      : await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(p.model)}:generateContent`, { method: 'POST', signal: ctl.signal, headers: { 'Content-Type': 'application/json', 'x-goog-api-key': p.key }, body: JSON.stringify({ systemInstruction: { parts: [{ text: o.system }] }, contents: [{ role: 'user', parts: [{ text: o.user }] }], generationConfig: { temperature: o.temperature ?? 0.8, maxOutputTokens: o.maxTokens, responseMimeType: 'application/json', ...(thinking ?? thinkingConfig(env)) } }) })
     if (!res.ok) {
       console.error('ai provider error', p.provider, res.status)
       // Admin-only endpoints: show the provider's own short reason (e.g. API_KEY_INVALID, RESOURCE_EXHAUSTED, model not found) so a setup mistake is diagnosable. The key itself is always redacted.

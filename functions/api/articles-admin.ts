@@ -2,7 +2,7 @@ import { analyzeArticle, minhash, sigSimilarity } from '../_lib/articleQuality'
 import { arabicSlug, isValidSlug, uniqueSlug, youtubeId, type ArticleImage } from '../_lib/articleText'
 import { deleteArticle, loadDirectory, readArticle, saveArticle, type ArticleDoc, type ArticleStatus } from '../_lib/articleStore'
 import { DEFAULT_ARTICLE_SETTINGS, loadSettings, normalizeSettings } from '../_lib/articleService'
-import { callLLM, clean, pickProvider } from '../_lib/articleAI'
+import { clean, fallbackFor, pickProvider, probeModel } from '../_lib/articleAI'
 import { renderArticle } from '../_lib/articlePages'
 import { announceArticle } from '../_lib/indexnow'
 import type { Env } from '../_lib/env'
@@ -111,10 +111,15 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
             if (r.ok) models = (((await r.json()) as { models?: { name?: string; supportedGenerationMethods?: string[] }[] }).models ?? []).filter((m) => m.supportedGenerationMethods?.includes('generateContent')).map((m) => String(m.name).replace(/^models\//, ''))
           } catch { /* the list is a convenience; the timed call below is the real test */ }
         }
-        const t0 = Date.now()
-        let ok = false; let error = ''
-        try { await callLLM(env, { system: 'Reply with the single word OK.', user: 'ping', maxTokens: 200, temperature: 0, timeoutMs: 25_000 }); ok = true } catch (e) { error = e instanceof Error ? e.message : 'failed' }
-        return json({ provider: p.provider, model: p.model, ok, ms: Date.now() - t0, error, models: models.slice(0, 80) })
+        const probe = async (model?: string, thinking?: Record<string, unknown>) => {
+          const t0 = Date.now()
+          try { await probeModel(env, model, thinking, 15_000); return { ok: true, ms: Date.now() - t0, error: '' } } catch (e) { return { ok: false, ms: Date.now() - t0, error: e instanceof Error ? e.message : 'failed' } }
+        }
+        const main = await probe()
+        const fb = fallbackFor(env)
+        // If the main model failed, also try the automatic fallback: that is the model article writing will switch to by itself.
+        const fallback = !main.ok && fb ? { model: fb.model, ...(await probe(fb.model, fb.thinking)) } : null
+        return json({ provider: p.provider, model: p.model, ok: main.ok, ms: main.ms, error: main.error, fallback, models: models.slice(0, 80) })
       }
       case 'delete': {
         if (!(await deleteArticle(env, slugOf(b.slug)))) throw new HttpError(404, 'not-found', 'المقال مش موجود')

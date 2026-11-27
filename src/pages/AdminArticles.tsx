@@ -59,7 +59,7 @@ export default function AdminArticles() {
 
 // ---------- AI connection check ----------
 function AiCheck() {
-  const [r, setR] = useState<{ provider: string; model: string; ok: boolean; ms: number; error: string; models: string[] } | null>(null)
+  const [r, setR] = useState<{ provider: string; model: string; ok: boolean; ms: number; error: string; fallback: { model: string; ok: boolean; ms: number; error: string } | null; models: string[] } | null>(null)
   const [msg, setMsg] = useState('')
   const [busy, setBusy] = useState(false)
   async function run() {
@@ -70,12 +70,15 @@ function AiCheck() {
     <details className="panel mt-8 p-4">
       <summary className="cursor-pointer font-display">اختبار الاتصال بالذكاء الاصطناعي (لو التوليد بيفشل)</summary>
       <div className="mt-3 space-y-3 text-sm">
-        <button type="button" className="btn-ghost" disabled={busy} onClick={() => void run()}>{busy ? 'بيختبر (لحد 25 ثانية)…' : 'اختبر الآن'}</button>
+        <button type="button" className="btn-ghost" disabled={busy} onClick={() => void run()}>{busy ? 'بيختبر (لحد 30 ثانية)…' : 'اختبر الآن'}</button>
         {msg && <p className="text-danger" role="alert">{msg}</p>}
         {r && (
           <div className="space-y-2" aria-live="polite">
             <p>المزوّد: <b dir="ltr">{r.provider}</b> · الموديل الحالي: <b dir="ltr">{r.model}</b></p>
             <p className={r.ok ? 'text-nile' : 'text-danger'}>{r.ok ? `اشتغل. زمن الرد ${(r.ms / 1000).toFixed(1)} ثانية` : `فشل بعد ${(r.ms / 1000).toFixed(1)} ثانية: ${r.error}`}</p>
+            {r.fallback && (r.fallback.ok
+              ? <p className="text-nile">الموديل الأساسي بطيء أو واقف، لكن <b dir="ltr">{r.fallback.model}</b> اشتغل في {(r.fallback.ms / 1000).toFixed(1)} ثانية. الكتابة بتتحوّل له <b>تلقائيًا</b> لما الأساسي يتأخر، فمفيش حاجة تعملها. (لو عايز تثبّته: <b dir="ltr">AI_MODEL</b> = <b dir="ltr">{r.fallback.model}</b> و<b dir="ltr">AI_THINKING</b> = <b dir="ltr">0</b>.)</p>
+              : <p className="text-danger">الموديل الاحتياطي <b dir="ltr">{r.fallback.model}</b> فشل كمان بعد {(r.fallback.ms / 1000).toFixed(1)} ثانية: {r.fallback.error}. غالبًا المشكلة في المفتاح أو الحصة عند Google (راجع Quota في AI Studio).</p>)}
             {r.models.length > 0 && (
               <div>
                 <p>الموديلات المتاحة لمفتاحك. اختار واحد وحطه في Cloudflare كمتغير <b dir="ltr">AI_MODEL</b> ثم Redeploy:</p>

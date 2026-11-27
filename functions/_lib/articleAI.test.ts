@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { AiFormatError, WRITER_SYSTEM, autoPlaceImages, callLLM, clean, defaultLinks, factsText, fetchSuggestions, parseModelJson, pickProvider, planPrompt, snapshotFacts, validateArticle, validatePlan, writePrompt } from './articleAI'
+import { AiFormatError, WRITER_SYSTEM, autoPlaceImages, callLLM, clean, fallbackFor, probeModel, defaultLinks, factsText, fetchSuggestions, parseModelJson, pickProvider, planPrompt, snapshotFacts, validateArticle, validatePlan, writePrompt } from './articleAI'
 import { BANNED_PHRASES } from './articleQuality'
 import type { Env } from './env'
 import { GOVS } from './seo'
@@ -151,4 +151,43 @@ describe('autoPlaceImages', () => {
     expect(autoPlaceImages(md, 9).match(/\{\{image:/g)?.length).toBeLessThanOrEqual(2)
   })
   it('does nothing for zero images, and never doubles existing markers', () => { expect(autoPlaceImages(md, 0)).toBe(md); const once = autoPlaceImages(md, 2); expect(autoPlaceImages(once, 2)).toBe(once) })
+})
+
+describe('callLLM failover (a slow or overloaded model never stops article writing)', () => {
+  const abort = () => Object.assign(new Error('aborted'), { name: 'AbortError' })
+  const ok = (t = '{"ok":1}') => new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: t }] } }] }))
+  const quiet = () => { const o = console.error; console.error = () => {}; return () => { console.error = o } }
+  const urlModel = (u: string): string => (/models\/([^:]+):/.exec(u)?.[1] ?? '')
+
+  it('timeout on the main model: the fallback (gemini-2.5-flash, thinking off) answers instead', async () => {
+    const restore = quiet(); let n = 0
+    vi.stubGlobal('fetch', async (u: string, init?: RequestInit) => { calls.push({ url: String(u), init, body: init?.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : {} }); if (n++ === 0) throw abort(); return ok() })
+    calls = []
+    const out = await callLLM(env({ GEMINI_API_KEY: 'k', AI_MODEL: 'gemini-3.1-flash-lite', AI_THINKING: 'low' }), { system: 'S', user: 'U', maxTokens: 10 })
+    restore()
+    expect(out).toBe('{"ok":1}')
+    expect(calls.map((c) => urlModel(c.url))).toEqual(['gemini-3.1-flash-lite', 'gemini-2.5-flash'])
+    expect((calls[1].body.generationConfig as Record<string, unknown>).thinkingConfig).toEqual({ thinkingBudget: 0 }) // never the main model's "low" level, which a 2.5 model rejects
+  })
+  it('an explicit AI_TIMEOUT_SECONDS means "wait this long": no switch on timeout', async () => {
+    const restore = quiet()
+    vi.stubGlobal('fetch', async (u: string, init?: RequestInit) => { calls.push({ url: String(u), init, body: {} }); throw abort() })
+    calls = []
+    const e = (await callLLM(env({ GEMINI_API_KEY: 'k', AI_MODEL: 'gemini-3.1-flash-lite', AI_TIMEOUT_SECONDS: '120' }), { system: '', user: '', maxTokens: 1 }).catch((x: unknown) => x)) as { code: string }
+    restore()
+    expect(e.code).toBe('ai-timeout'); expect(calls).toHaveLength(1)
+  })
+  it('no fallback when the main model already is the fallback, and none for Anthropic by default', () => {
+    expect(fallbackFor(env({ GEMINI_API_KEY: 'k', AI_MODEL: 'gemini-2.5-flash' }))).toBeNull()
+    expect(fallbackFor(env({ ANTHROPIC_API_KEY: 'k' }))).toBeNull()
+    expect(fallbackFor(env({ ANTHROPIC_API_KEY: 'k', AI_FALLBACK_MODEL: 'claude-haiku-5-5' }))?.model).toBe('claude-haiku-5-5')
+    expect(fallbackFor(env({ GEMINI_API_KEY: 'k' }))).toMatchObject({ model: 'gemini-2.5-flash', thinking: { thinkingConfig: { thinkingBudget: 0 } } })
+    expect(fallbackFor(env({ GEMINI_API_KEY: 'k', AI_FALLBACK_MODEL: 'gemini-3.5-flash' }))?.thinking).toBeUndefined()
+  })
+  it('probeModel calls the named model with the given thinking setting', async () => {
+    stubFetch(() => ok('OK'))
+    expect(await probeModel(env({ GEMINI_API_KEY: 'k' }), 'gemini-2.5-flash', { thinkingConfig: { thinkingBudget: 0 } }, 5000)).toBe('OK')
+    expect(urlModel(calls[0].url)).toBe('gemini-2.5-flash')
+    expect((calls[0].body.generationConfig as Record<string, unknown>).thinkingConfig).toEqual({ thinkingBudget: 0 })
+  })
 })
