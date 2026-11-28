@@ -5,7 +5,7 @@
  * prices come from `settings/promo` (admin-edited), a request only records "I paid X, reference Y", and approval is a human decision.
  */
 
-export interface Plan { id: string; name: string; price: number; days: number; revealLimit: number; /** 0 = unlimited */ maxAds: number }
+export interface Plan { id: string; name: string; price: number; days: number; revealLimit: number; /** 0 = unlimited */ maxAds: number; /** Free "first in the governorate" featured periods included in each paid period (the member uses them on their own ads). 0 = none. */ featuredCredits: number }
 export interface PromoSettings {
   /** Master switch for ALL paid promotion (featured ads and plans). Off = the plans page shows "closed" and new requests are refused; what was already approved keeps running. */
   enabled: boolean
@@ -21,8 +21,8 @@ export const DEFAULT_PROMO: PromoSettings = {
   vodafoneCash: '', instapay: '', payeeName: '',
   featured: { enabled: true, days: 7, priceGov: 100, priceAll: 250 },
   plans: [
-    { id: 'broker-basic', name: 'سمسار أساسي', price: 300, days: 30, revealLimit: 60, maxAds: 30 },
-    { id: 'broker-pro', name: 'سمسار محترف', price: 700, days: 30, revealLimit: 200, maxAds: 100 },
+    { id: 'broker-basic', name: 'سمسار أساسي', price: 300, days: 30, revealLimit: 60, maxAds: 30, featuredCredits: 1 },
+    { id: 'broker-pro', name: 'سمسار محترف', price: 700, days: 30, revealLimit: 200, maxAds: 100, featuredCredits: 4 },
   ],
   freeMaxAds: { owner: 0, broker: 5 },
 }
@@ -47,7 +47,7 @@ export function normalizePromo(raw: unknown): PromoSettings {
     const id = str(x.id, 30)
     if (!PLAN_ID.test(id) || seen.has(id)) return []
     seen.add(id)
-    return [{ id, name: str(x.name, 40) || id, price: num(x.price, 1, 1_000_000, 300), days: num(x.days, 1, 366, 30), revealLimit: num(x.revealLimit, 1, 100_000, 60), maxAds: num(x.maxAds, 0, 100_000, 30) }]
+    return [{ id, name: str(x.name, 40) || id, price: num(x.price, 1, 1_000_000, 300), days: num(x.days, 1, 366, 30), revealLimit: num(x.revealLimit, 1, 100_000, 60), maxAds: num(x.maxAds, 0, 100_000, 30), featuredCredits: num(x.featuredCredits, 0, 50, 0) }]
   }).slice(0, 6)
   return {
     enabled: o.enabled !== false,
@@ -59,13 +59,13 @@ export function normalizePromo(raw: unknown): PromoSettings {
 }
 
 // ---------- plans on a user ----------
-export interface ActivePlan { id: string; name: string; until: Date; revealLimit: number; maxAds: number }
+export interface ActivePlan { id: string; name: string; until: Date; revealLimit: number; maxAds: number; creditsLeft: number }
 
 /** The plan stored on the user's profile, if it has not expired. Limits are the ones stored at approval time, so later price/limit edits never shrink a plan someone already paid for. */
 export function activePlan(user: Record<string, unknown> | null | undefined, now: Date = new Date()): ActivePlan | null {
   const p = user?.plan as Record<string, unknown> | undefined
   if (!p || !(p.until instanceof Date) || p.until.getTime() <= now.getTime()) return null
-  return { id: String(p.id ?? ''), name: String(p.name ?? ''), until: p.until, revealLimit: Math.max(1, Number(p.revealLimit) || 1), maxAds: Math.max(0, Number(p.maxAds) || 0) }
+  return { id: String(p.id ?? ''), name: String(p.name ?? ''), until: p.until, revealLimit: Math.max(1, Number(p.revealLimit) || 1), maxAds: Math.max(0, Number(p.maxAds) || 0), creditsLeft: Math.max(0, Math.floor(Number(p.creditsLeft) || 0)) }
 }
 
 /** Daily contact-reveal limit for a user: the plan's if active, otherwise `base`. */

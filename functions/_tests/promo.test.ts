@@ -120,3 +120,36 @@ describe('POST /api/promo: admin decisions', () => {
     expect((w.db.get('units/unitEEEEEE0001')?.ownerPlanUntil as Date).getTime()).toBe((w.db.get(`users/${TENANT}`)?.plan as { until: Date }).until.getTime())
   })
 })
+
+describe('plan: included free featured periods (credits)', () => {
+  const withCredits = { ...SETTINGS, plans: [{ ...SETTINGS.plans[0], featuredCredits: 2 }] }
+  const buyPlan = async (uid: string, ref: string) => { await ask(uid, { action: 'request', kind: 'plan', planId: 'broker-pro', method: 'vodafone', reference: ref }); const id = w.db.list('promoRequests').find((r) => r.data.reference === ref)!.id; return ask(ADMIN, { action: 'approve', id }) }
+  it('approval stores the credits; redeeming one features my own ad, costs one credit, and needs no admin', async () => {
+    ready(withCredits); seedUnit(w.db, { id: 'unitFFFFFF0001', ownerId: TENANT })
+    await buyPlan(TENANT, 'VC-110011')
+    expect((w.db.get(`users/${TENANT}`)?.plan as { creditsLeft: number }).creditsLeft).toBe(2)
+    const r = await ask(TENANT, { action: 'redeem', unitId: 'unitFFFFFF0001' })
+    expect(r.status).toBe(200); expect(r.json.creditsLeft).toBe(1)
+    const u = w.db.get('units/unitFFFFFF0001')!
+    expect((u.featuredUntil as Date).getTime() - Date.now()).toBeGreaterThan(6.9 * DAY); expect(u.featuredScope).toBe('gov')
+    expect((w.db.get(`users/${TENANT}`)?.plan as { creditsLeft: number; id: string }).id).toBe('broker-pro') // the rest of the plan is untouched
+    expect(w.db.list('promoRequests').some((x) => x.data.method === 'credit' && x.data.status === 'approved' && x.data.amount === 0)).toBe(true)
+    await ask(TENANT, { action: 'redeem', unitId: 'unitFFFFFF0001' })
+    expect((await ask(TENANT, { action: 'redeem', unitId: 'unitFFFFFF0001' })).json.error).toBe('no-credit')
+  })
+  it('refuses: no plan, an expired plan, someone else\'s ad, and while the shop is switched off', async () => {
+    ready(withCredits); seedUnit(w.db, { id: 'unitFFFFFF0002', ownerId: TENANT })
+    expect((await ask(TENANT, { action: 'redeem', unitId: 'unitFFFFFF0002' })).json.error).toBe('no-plan')
+    seedUser(w.db, TENANT, { plan: { id: 'broker-pro', name: 'x', until: new Date(new Date(NOW).getTime() - DAY), revealLimit: 5, maxAds: 5, creditsLeft: 3 } })
+    expect((await ask(TENANT, { action: 'redeem', unitId: 'unitFFFFFF0002' })).json.error).toBe('no-plan')
+    seedUser(w.db, TENANT, { plan: { id: 'broker-pro', name: 'x', until: new Date(new Date(NOW).getTime() + 5 * DAY), revealLimit: 5, maxAds: 5, creditsLeft: 3 } })
+    expect((await ask(TENANT, { action: 'redeem', unitId: UNIT })).json.error).toBe('not-found') // UNIT belongs to OWNER
+    w.db.seed('settings/promo', { ...withCredits, enabled: false }); resetPromoCache()
+    expect((await ask(TENANT, { action: 'redeem', unitId: 'unitFFFFFF0002' })).json.error).toBe('promo-off')
+  })
+  it('renewing the same plan adds credits to what is left', async () => {
+    ready(withCredits)
+    await buyPlan(TENANT, 'VC-220022'); await buyPlan(TENANT, 'VC-330033')
+    expect((w.db.get(`users/${TENANT}`)?.plan as { creditsLeft: number }).creditsLeft).toBe(4)
+  })
+})

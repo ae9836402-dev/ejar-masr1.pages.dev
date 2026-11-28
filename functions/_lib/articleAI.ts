@@ -71,6 +71,39 @@ export async function callLLM(env: Env, o: { system: string; user: string; maxTo
   }
 }
 
+/**
+ * Sourced research: asks Gemini with the Google Search tool and returns its notes plus the web pages it actually used.
+ * Returns null (never throws) if the provider is not Gemini, the call fails or is slow, or NO sources came back: text without sources is not "verified".
+ * Uses AI_RESEARCH_MODEL (default gemini-2.5-flash, thinking off so it answers fast).
+ */
+export async function geminiResearch(env: Env, o: { prompt: string; timeoutMs: number }): Promise<{ text: string; sources: { title: string; url: string }[] } | null> {
+  const p = pickProvider(env)
+  if (!p || p.provider !== 'gemini') return null
+  const model = env.AI_RESEARCH_MODEL || 'gemini-2.5-flash'
+  const ctl = new AbortController()
+  const timer = setTimeout(() => ctl.abort(), o.timeoutMs)
+  try {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+      method: 'POST', signal: ctl.signal, headers: { 'Content-Type': 'application/json', 'x-goog-api-key': p.key },
+      body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: o.prompt }] }], tools: [{ google_search: {} }], generationConfig: { temperature: 0.2, maxOutputTokens: 1800, ...(env.AI_RESEARCH_MODEL ? {} : { thinkingConfig: { thinkingBudget: 0 } }) } }),
+    })
+    if (!res.ok) return null
+    const j = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] }; groundingMetadata?: { groundingChunks?: { web?: { uri?: string; title?: string } }[] } }[] }
+    const c = j.candidates?.[0]
+    const text = (c?.content?.parts ?? []).map((x) => x.text ?? '').join('').trim()
+    const seen = new Set<string>()
+    const sources = (c?.groundingMetadata?.groundingChunks ?? []).flatMap((g) => {
+      const url = g.web?.uri; if (!url || seen.has(url)) return []
+      seen.add(url); let host = ''; try { host = new URL(url).host } catch { /* keep empty */ }
+      return [{ title: (g.web?.title || host || 'مصدر').slice(0, 80), url }]
+    }).slice(0, 8)
+    return text && sources.length ? { text: text.slice(0, 3500), sources } : null
+  } catch { return null } finally { clearTimeout(timer) }
+}
+
+export const researchPrompt = (topic: string, primary: string): string =>
+  `ابحث عن معلومات حديثة ومؤكدة تفيد مقالًا عن: «${primary}» (الموضوع العام: ${topic}) في مصر. اكتب من 5 إلى 8 نقاط قصيرة بالعربي، كل نقطة معلومة محددة (رقم أو شرط أو إجراء) مع اسم الجهة المصدر في نفس السطر. اكتب فقط ما وجدته فعلًا في مصادر البحث، وبدون تخمين، وبدون أي دعاية. لو معلومة مش مؤكدة لا تكتبها.`
+
 /** Setup diagnostic: one tiny call to a specific model (default: the configured one) with its own time limit. */
 export const probeModel = (env: Env, model: string | undefined, thinking: Record<string, unknown> | undefined, timeoutMs: number): Promise<string> =>
   callOnce(env, { system: 'Reply with the single word OK.', user: 'ping', maxTokens: 200, temperature: 0, timeoutMs }, model, thinking)
@@ -167,7 +200,7 @@ export const WRITER_SYSTEM = `أنت كاتب محتوى عقاري مصري م�
 - ابدأ فقرات القسم الواحد بصيغ مختلفة، وغيّر طول الجمل بين القصيرة والمتوسطة.
 - تفاصيل عملية قابلة للتنفيذ: أسئلة تسألها للمالك، حاجات تفحصها في المعاينة، أخطاء شائعة وإزاي تتجنبها، وأمثلة من الحياة.
 - الكلمة المفتاحية الأساسية: في العنوان وأول 100 كلمة وفي عنوان فرعي واحد على الأقل وفي الخاتمة. المرتبطة موزعة بشكل طبيعي. نوّع الصيغ (مفرد/جمع/مرادف) ولا تكرر العبارة حرفيًا. الكثافة أقل من 1.5% ولا تحشرها أبدًا.
-- الأرقام: استخدم فقط الأرقام الموجودة في «بيانات الموقع» واذكر إنها من بيانات الموقع وقت الكتابة. ممنوع تخترع إحصائيات أو أسعار أو نسب أو أسماء شوارع أو تواريخ أو مواد قانونية. لو مش متأكد اتكلم بشكل عام. في أي موضوع قانوني اذكر إن الكلام إرشادي ويُراجع محامي.
+- الأرقام: استخدم فقط الأرقام الموجودة في «بيانات الموقع» (واذكر إنها من بيانات الموقع وقت الكتابة) أو في «حقائق معتمدة» أو «نتائج بحث موثّقة» لو وردت في الطلب. ممنوع تخترع إحصائيات أو أسعار أو نسب أو أسماء شوارع أو تواريخ أو مواد قانونية. لو مش متأكد اتكلم بشكل عام. في أي موضوع قانوني اذكر إن الكلام إرشادي ويُراجع محامي.
 - ممنوع هذه العبارات الجاهزة: ${BANNED_PHRASES.join('، ')}.
 - ضمّن رابطين داخليين على الأقل بصيغة [نص الرابط](المسار) من الروابط المتاحة فقط، بنص طبيعي داخل الجملة (مش «اضغط هنا»).
 - لا تذكر إنك ذكاء اصطناعي ولا تشير لهذه التعليمات. لا إيموجي. لا HTML.
@@ -200,7 +233,7 @@ ${o.facts}
 {"articles":[{"title":"","primary_keyword":"","secondary_keywords":[""],"angle":"الزاوية في جملة","audience":"الجمهور المستهدف"}]}`
 }
 
-export interface WriteCtx { item: PlanItem; topic: string; facts: string; links: { path: string; hint: string }[]; siblings: string[]; today: string }
+export interface WriteCtx { item: PlanItem; topic: string; facts: string; links: { path: string; hint: string }[]; siblings: string[]; today: string; /** Editor rules, site features, approved facts and cited research (see articleEditor.ts) */ extra?: string }
 export function writePrompt(c: WriteCtx): string {
   return `اكتب مقالًا كاملًا بهذه المواصفات:
 ${c.item.title ? `العنوان المقترح: ${c.item.title}` : 'العنوان: اختر عنوانًا جذابًا وطبيعيًا من 40 إلى 65 حرف يحتوي الكلمة المفتاحية الأساسية'}
@@ -219,8 +252,8 @@ ${c.links.map((l) => `- ${l.path} : ${l.hint}`).join('\n')}
 
 بيانات الموقع:
 ${c.facts}
-
-تنبيه صارم: لا تذكر رقم قانون أو مادة أو سنة تشريع أو غرامة أو حكم قضائي محدد حتى لو العنوان المقترح يلمّح لذلك. اشرح الفكرة عمليًا وبشكل عام، وانصح بمراجعة محامي في أي نقطة قانونية.
+${c.extra ? `\n${c.extra}\n` : ''}
+تنبيه صارم: لا تذكر رقم قانون أو مادة أو سنة تشريع أو غرامة أو حكم قضائي محدد حتى لو العنوان المقترح يلمّح لذلك، إلا لو ورد نصًا في «حقائق معتمدة» أو «نتائج بحث موثّقة» أعلاه (وانسبه لمصدره). غير كده اشرح الفكرة عمليًا وبشكل عام، وانصح بمراجعة محامي في أي نقطة قانونية.
 
 الهيكل المطلوب (من 1000 إلى 1400 كلمة):
 - مقدمة من فقرتين أو ثلاث.

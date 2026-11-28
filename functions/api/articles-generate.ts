@@ -1,6 +1,7 @@
 import { clean, fetchSuggestions, type PlanMode } from '../_lib/articleAI'
-import { planArticles, writeArticle } from '../_lib/articleService'
+import { loadSettings, planArticles, writeArticle } from '../_lib/articleService'
 import { overLimit } from '../_lib/edgeLimit'
+import { withPanelSettings } from '../_lib/systemSettings'
 import type { Env } from '../_lib/env'
 import { HttpError, errorResponse, json, readJson, requireUser } from '../_lib/http'
 import { GOVS } from '../_lib/seo'
@@ -12,8 +13,9 @@ import { GOVS } from '../_lib/seo'
  *   { action: 'write', item: { title?, primary, secondary[], angle, audience }, topic, govId?, typeId? } -> writes ONE article and saves it as a DRAFT
  * One article per request on purpose: each one is a single AI call, so it always finishes inside the platform's time limit; the admin screen loops.
  */
-export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
+export const onRequestPost: PagesFunction<Env> = async ({ request, env: rawEnv }) => {
   try {
+    const env = await withPanelSettings(rawEnv)
     const admin = await requireUser(request, env, { admin: true })
     const b = await readJson<Record<string, unknown>>(request)
     const topic = clean(b.topic, 120)
@@ -37,7 +39,8 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       const primary = clean(it.primary, 60)
       if (primary.length < 3) throw new HttpError(400, 'bad-keyword', 'الكلمة المفتاحية الأساسية ناقصة')
       const item = { title: clean(it.title, 120), primary, secondary: (Array.isArray(it.secondary) ? it.secondary : []).map((x) => clean(x, 60)).filter(Boolean).slice(0, 8), angle: clean(it.angle, 200), audience: clean(it.audience, 120) }
-      const r = await writeArticle(env, { item, topic: topic || primary, govId, typeId, autoPublish: false, minScore: 0, now: new Date() })
+      const { settings } = await loadSettings(env)
+      const r = await writeArticle(env, { item, topic: topic || primary, govId, typeId, autoPublish: false, minScore: 0, now: new Date(), editor: settings.editor, instructions: clean(b.instructions, 1500) })
       return json({ slug: r.article.slug, title: r.article.title, status: r.article.status, score: r.article.score, issues: r.article.issues, similarTo: r.article.similarTo })
     }
     throw new HttpError(400, 'bad-action', 'إجراء غير معروف')

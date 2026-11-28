@@ -1,7 +1,8 @@
 /** The article pipeline: settings, planning, writing one article, and the automatic scheduler. Everything an admin button or the cron calls. */
 import { MAX_TOPICS } from './topicLimits'
 import { announceArticle } from './indexnow'
-import { AiFormatError, callLLM, defaultLinks, factsText, fetchSuggestions, improvePrompt, parseModelJson, pickProvider, planPrompt, snapshotFacts, validateArticle, validatePlan, writePrompt, WRITER_SYSTEM, autoPlaceImages, type PlanItem, type PlanMode, type Written, type WriteCtx } from './articleAI'
+import { DEFAULT_EDITOR, editorBlock, insertBeforeFirstSection, knownText, normalizeEditor, sourcesBlock, statsBlock, type EditorSettings, type Research } from './articleEditor'
+import { AiFormatError, callLLM, defaultLinks, factsText, fetchSuggestions, geminiResearch, improvePrompt, parseModelJson, pickProvider, planPrompt, researchPrompt, snapshotFacts, validateArticle, validatePlan, writePrompt, WRITER_SYSTEM, autoPlaceImages, type PlanItem, type PlanMode, type Written, type WriteCtx } from './articleAI'
 import { analyzeArticle, minhash, sigSimilarity } from './articleQuality'
 import { arabicSlug, uniqueSlug } from './articleText'
 import { loadDirectory, readArticle, saveArticle, type ArticleDoc, type DirEntry } from './articleStore'
@@ -15,6 +16,8 @@ export interface Topic { topic: string; govId: string; typeId: string }
 export interface ArticleSettings {
   enabled: boolean; mode: 'review' | 'auto'; everyHours: number; dailyMax: number; minScore: number; topics: Topic[]; cursor: number; loop: boolean
   lastRunAt: number | null; lastResult: string; lastError: string; dayKey: string; todayCount: number
+  /** Standing writing rules, site features, approved facts and the research switch (admin-edited, see articleEditor.ts) */
+  editor: EditorSettings
 }
 
 const gov = (name: string): string => GOVS.find((g) => g.name === name)?.id ?? ''
@@ -30,7 +33,7 @@ export const DEFAULT_TOPICS: Topic[] = [
 const ANGLES = ['دليل للمبتدئين خطوة بخطوة', 'الأخطاء الشائعة وكيف تتجنبها', 'ميزانية واضحة وحسابات عملية', 'أسئلة تسألها قبل ما توقّع', 'مقارنة بين الخيارات المتاحة', 'قصة موقف حقيقي ثم الدروس المستفادة', 'قائمة فحص للمعاينة', 'نصائح للمفاوضة على السعر']
 const AUDIENCES = ['مستأجر جديد', 'عرسان', 'طلاب وموظفين', 'عائلة صغيرة', 'ملاك يفكرون في التأجير']
 
-export const DEFAULT_ARTICLE_SETTINGS: ArticleSettings = { enabled: false, mode: 'review', everyHours: 24, dailyMax: 2, minScore: 80, topics: DEFAULT_TOPICS, cursor: 0, loop: false, lastRunAt: null, lastResult: '', lastError: '', dayKey: '', todayCount: 0 }
+export const DEFAULT_ARTICLE_SETTINGS: ArticleSettings = { enabled: false, mode: 'review', everyHours: 24, dailyMax: 2, minScore: 80, topics: DEFAULT_TOPICS, cursor: 0, loop: false, lastRunAt: null, lastResult: '', lastError: '', dayKey: '', todayCount: 0, editor: DEFAULT_EDITOR }
 const num = (v: unknown, lo: number, hi: number, d: number): number => { const n = Number(v); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, Math.round(n))) : d }
 
 export function normalizeSettings(d: Record<string, unknown> | undefined): ArticleSettings {
@@ -46,7 +49,7 @@ export function normalizeSettings(d: Record<string, unknown> | undefined): Artic
   return {
     enabled: x.enabled === true, mode: x.mode === 'auto' ? 'auto' : 'review', everyHours: num(x.everyHours, 1, 168, 24), dailyMax: num(x.dailyMax, 1, 8, 2), minScore: num(x.minScore, 60, 95, 80),
     topics: topics.length ? topics : DEFAULT_TOPICS, cursor: num(x.cursor, 0, 1_000_000, 0), loop: x.loop === true, lastRunAt: x.lastRunAt instanceof Date ? x.lastRunAt.getTime() : null,
-    lastResult: String(x.lastResult ?? '').slice(0, 300), lastError: String(x.lastError ?? '').slice(0, 300), dayKey: String(x.dayKey ?? ''), todayCount: num(x.todayCount, 0, 1000, 0),
+    lastResult: String(x.lastResult ?? '').slice(0, 300), lastError: String(x.lastError ?? '').slice(0, 300), dayKey: String(x.dayKey ?? ''), todayCount: num(x.todayCount, 0, 1000, 0), editor: normalizeEditor(x.editor),
   }
 }
 export async function loadSettings(env: Env): Promise<{ settings: ArticleSettings; updateTime?: string; exists: boolean }> {
@@ -70,7 +73,7 @@ export async function planArticles(env: Env, o: { topic: string; count: number; 
 }
 
 // ---------- writing one article ----------
-export interface WriteParams { item: PlanItem; topic: string; govId: string; typeId: string; autoPublish: boolean; minScore: number; now: Date }
+export interface WriteParams { item: PlanItem; topic: string; govId: string; typeId: string; autoPublish: boolean; minScore: number; now: Date; /** Admin-edited rules, features, facts and research switch (omitted = none of these) */ editor?: EditorSettings; /** Extra rules for THIS article only */ instructions?: string }
 export interface WriteResult { article: ArticleDoc; entry: DirEntry; published: boolean; why: string[] }
 
 /** Real photos of real listings in the article's governorate: relevant, free, and each one links to the listing. */
@@ -111,16 +114,25 @@ export async function writeArticle(env: Env, p: WriteParams): Promise<WriteResul
   const typeLabel = p.typeId ? String((snap?.units.find((u) => u.data.typeId === p.typeId)?.data.typeName) ?? '') : ''
   const siblings = dir.entries.filter((e) => e.status !== 'draft' || e.topic === p.topic).sort((a, b) => (b.topic === p.topic ? 1 : 0) - (a.topic === p.topic ? 1 : 0)).slice(0, 12).map((e) => `- /blog/${e.slug} : ${e.title}`)
   const links = defaultLinks(g?.slug, g?.name, p.typeId || undefined, typeLabel || undefined)
-  const ctx: WriteCtx = { item: p.item, topic: p.topic, facts: snap ? factsText(snapshotFacts(snap, p.govId, p.typeId)) : 'لا تتوفر بيانات.', links, siblings, today: p.now.toISOString().slice(0, 10) }
+  const siteFacts = snap ? snapshotFacts(snap, p.govId, p.typeId) : null
+  const ctx: WriteCtx = { item: p.item, topic: p.topic, facts: siteFacts ? factsText(siteFacts) : 'لا تتوفر بيانات.', links, siblings, today: p.now.toISOString().slice(0, 10) }
+  const perArticle = (p.instructions ?? '').slice(0, 1500)
+  // Optional sourced research (Gemini + Google Search). Best effort and time-boxed: without sources it is dropped, and the article is written from site data and approved facts only.
+  const tr = Date.now()
+  const research: Research | null = p.editor?.research ? await geminiResearch(env, { prompt: researchPrompt(p.topic, p.item.primary), timeoutMs: 18_000 }) : null
+  const researchMs = Date.now() - tr
+  if (p.editor) ctx.extra = editorBlock(p.editor, perArticle, research) || undefined
+  const known = knownText(ctx.facts, p.editor ?? null, perArticle, research) // numbers the quality checker accepts as "from a real source"
+  const writerTimeout = research ? Math.max(40_000, 88_000 - researchMs) : undefined // research eats part of the ~100 s platform limit
   const prompt = writePrompt(ctx)
   const t0 = Date.now()
   let written: Written
-  try { written = validateArticle(parseModelJson(await callLLM(env, { system: WRITER_SYSTEM, user: prompt, maxTokens: 8000, temperature: 0.75 }))) } catch (e) {
+  try { written = validateArticle(parseModelJson(await callLLM(env, { system: WRITER_SYSTEM, user: prompt, maxTokens: 8000, temperature: 0.75, timeoutMs: writerTimeout }))) } catch (e) {
     if (!(e instanceof AiFormatError)) throw e
     try { written = validateArticle(parseModelJson(await callLLM(env, { system: WRITER_SYSTEM, user: `${prompt}\n\nتنبيه: التزم بالهيكل كاملًا (مقدمة، 5 أقسام على الأقل، خاتمة، أسئلة شائعة) وأخرج JSON صالحًا فقط.`, maxTokens: 8000, temperature: 0.6 }))) } catch { throw new HttpError(502, 'ai-format', 'الـ AI رجّع مقال ناقص أو بصيغة غير صالحة. جرّب تاني') }
   }
   // Quality pass: if the first draft misses the target, ask the model once to fix exactly what the checker found, and keep whichever version scores higher.
-  const rate = (w: Written) => analyzeArticle({ title: w.title, description: fitDescription(w.description), slug: arabicSlug(p.item.primary), body: ensureInternalLinks(w.body, links), primary: p.item.primary, secondary: p.item.secondary, faq: w.faq, images: [], facts: ctx.facts })
+  const rate = (w: Written) => analyzeArticle({ title: w.title, description: fitDescription(w.description), slug: arabicSlug(p.item.primary), body: ensureInternalLinks(w.body, links), primary: p.item.primary, secondary: p.item.secondary, faq: w.faq, images: [], facts: known })
   const first = rate(written)
   const target = Math.max(p.minScore + 5, 85)
   const spent = Date.now() - t0
@@ -133,12 +145,17 @@ export async function writeArticle(env: Env, p: WriteParams): Promise<WriteResul
   const photos = listingImages(snap, p.govId, p.typeId)
   const cover = photos[0] ?? null
   const bodyImages = photos.slice(1)
-  const body = ensureSiteLink(ensureInternalLinks(autoPlaceImages(written.body, bodyImages.length), links))
+  let body = ensureInternalLinks(autoPlaceImages(written.body, bodyImages.length), links)
+  const stats = p.govId && siteFacts ? statsBlock(siteFacts, p.now.toISOString().slice(0, 10)) : null
+  if (stats) body = insertBeforeFirstSection(body, stats) // real numbers from the site's own ads, written by code with the date
+  body = ensureSiteLink(body)
+  const sources = sourcesBlock(research)
+  if (sources) body = `${body.trimEnd()}\n\n${sources}\n` // only sources the research really returned
   const description = fitDescription(written.description)
   const taken = async (x: string) => dir.entries.some((e) => e.slug === x)
   const firstChoice = arabicSlug(p.item.primary) // the words people search for
   const slug = firstChoice && !(await taken(firstChoice)) ? firstChoice : await uniqueSlug(arabicSlug(written.title) || firstChoice, taken) // then the title, then -2, -3
-  const quality = analyzeArticle({ title: written.title, description, slug, body, primary: p.item.primary, secondary: p.item.secondary, faq: written.faq, images: [...(cover ? [cover] : []), ...bodyImages], facts: ctx.facts })
+  const quality = analyzeArticle({ title: written.title, description, slug, body, primary: p.item.primary, secondary: p.item.secondary, faq: written.faq, images: [...(cover ? [cover] : []), ...bodyImages], facts: known })
   const sig = minhash(body)
   const near = dir.entries.filter((e) => e.slug !== slug).map((e) => ({ slug: e.slug, score: Math.round(sigSimilarity(sig, e.sig) * 100) / 100 })).sort((a, b) => b.score - a.score)[0]
   const similarTo = near && near.score >= 0.2 ? near : null
@@ -196,7 +213,7 @@ export async function runArticleCron(env: Env, now: Date): Promise<CronResult> {
   try {
     const suggestions = await fetchSuggestions(t.topic)
     const item: PlanItem = { title: '', primary: t.topic, secondary: suggestions.filter((s) => s !== t.topic).slice(0, 6), angle: ANGLES[(settings.cursor + lap) % ANGLES.length], audience: AUDIENCES[settings.cursor % AUDIENCES.length] }
-    const r = await writeArticle(env, { item, topic: t.topic, govId: t.govId, typeId: t.typeId, autoPublish: settings.mode === 'auto', minScore: settings.minScore, now })
+    const r = await writeArticle(env, { item, topic: t.topic, govId: t.govId, typeId: t.typeId, autoPublish: settings.mode === 'auto', minScore: settings.minScore, now, editor: settings.editor })
     res.generated = `${r.article.slug} (${r.published ? 'منشور' : 'مسودة'}${r.why.length ? `: ${r.why.join('، ')}` : ''})`
     const after = await loadSettings(env)
     await commitGuarded(env, [{ kind: 'upsert', path: 'articleMeta/settings', data: settingsData({ ...after.settings, cursor: settings.cursor + 1, todayCount: todayCount + 1, lastResult: res.generated, lastError: '' }) }], {})

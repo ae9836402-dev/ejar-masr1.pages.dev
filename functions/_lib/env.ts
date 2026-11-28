@@ -12,12 +12,16 @@ export interface Env {
   OLD_SITE_URLS?: string
   /** Optional: model tried once when AI_MODEL is overloaded (503/429/500). Default for Gemini: gemini-2.5-flash. */
   AI_FALLBACK_MODEL?: string
+  /** Model for the sourced-research step (Gemini + Google Search). Default gemini-2.5-flash. */
+  AI_RESEARCH_MODEL?: string
   PAYMOB_SECRET_KEY?: string
   PAYMOB_PUBLIC_KEY?: string
   PAYMOB_INTEGRATION_IDS?: string // comma-separated card/wallet integration ids
   PAYMOB_HMAC_SECRET?: string
   /** Optional: IndexNow key (8-128 letters/digits/dashes). Enables instant "new page" pings to Bing/Yandex and serves /indexnow-key.txt. */
   INDEXNOW_KEY?: string
+  /** Secret: 32 random bytes in base64 (`openssl rand -base64 32`). Encrypts ID photos at rest; without it new ID submissions are refused. */
+  ID_ENC_KEY?: string
   CRON_SECRET?: string // protects POST /api/sweep (daily job)
   RESEND_API_KEY?: string // transactional email (resend.com free tier)
   EMAIL_FROM?: string // e.g. "إيجار مصر <noreply@your-domain.com>"

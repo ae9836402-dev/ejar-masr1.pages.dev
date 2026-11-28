@@ -2,9 +2,10 @@ import { analyzeArticle, minhash, sigSimilarity } from '../_lib/articleQuality'
 import { arabicSlug, isValidSlug, uniqueSlug, youtubeId, type ArticleImage } from '../_lib/articleText'
 import { deleteArticle, loadDirectory, readArticle, saveArticle, type ArticleDoc, type ArticleStatus } from '../_lib/articleStore'
 import { DEFAULT_ARTICLE_SETTINGS, loadSettings, normalizeSettings } from '../_lib/articleService'
-import { clean, fallbackFor, pickProvider, probeModel } from '../_lib/articleAI'
+import { clean, fallbackFor, geminiResearch, pickProvider, probeModel, researchPrompt } from '../_lib/articleAI'
 import { renderArticle } from '../_lib/articlePages'
 import { announceArticle } from '../_lib/indexnow'
+import { withPanelSettings } from '../_lib/systemSettings'
 import type { Env } from '../_lib/env'
 import { commitGuarded } from '../_lib/firestore'
 import { HttpError, errorResponse, json, readJson, requireUser } from '../_lib/http'
@@ -26,8 +27,9 @@ export const publicShape = (a: ArticleDoc) => ({ ...a, publishAt: iso(a.publishA
  * POST /api/articles-admin (admin only). Actions: list | get | save | preview | ai-check | publish | unpublish | schedule | delete | settings | settings-save
  * Every field is validated and size-limited here; the body is stored as the restricted markdown and only ever rendered by the safe renderer.
  */
-export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
+export const onRequestPost: PagesFunction<Env> = async ({ request, env: rawEnv }) => {
   try {
+    const env = await withPanelSettings(rawEnv) // model names, thinking level and the IndexNow key set in the panel win over Cloudflare variables
     await requireUser(request, env, { admin: true })
     const b = await readJson<Record<string, unknown>>(request)
     const slugOf = (v: unknown): string => { const s = plain(v, 90); if (!isValidSlug(s)) throw new HttpError(400, 'bad-slug', 'رابط المقال غير صحيح'); return s }
@@ -120,6 +122,12 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
         // If the main model failed, also try the automatic fallback: that is the model article writing will switch to by itself.
         const fallback = !main.ok && fb ? { model: fb.model, ...(await probe(fb.model, fb.thinking)) } : null
         return json({ provider: p.provider, model: p.model, ok: main.ok, ms: main.ms, error: main.error, fallback, models: models.slice(0, 80) })
+      }
+      case 'research-test': { // "try the research now": does Gemini + Google Search return notes WITH sources for this key and model?
+        const topic = typeof b.topic === 'string' && b.topic.trim().length >= 3 ? b.topic.trim().slice(0, 100) : 'شروط وإجراءات عقد إيجار شقة سكنية في مصر'
+        const t0 = Date.now()
+        const r = await geminiResearch(env, { prompt: researchPrompt(topic, topic), timeoutMs: 25_000 })
+        return json({ ok: !!r, ms: Date.now() - t0, provider: pickProvider(env)?.provider ?? null, text: r?.text ?? '', sources: r?.sources ?? [] })
       }
       case 'delete': {
         if (!(await deleteArticle(env, slugOf(b.slug)))) throw new HttpError(404, 'not-found', 'المقال مش موجود')

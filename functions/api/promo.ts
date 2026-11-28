@@ -55,7 +55,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       } else {
         const plan = promo.plans.find((p) => p.id === parsed.planId)
         if (!plan) throw new HttpError(404, 'no-plan', 'الباقة غير موجودة')
-        Object.assign(base, { planId: plan.id, planName: plan.name, days: plan.days, amount: plan.price, planRevealLimit: plan.revealLimit, planMaxAds: plan.maxAds })
+        Object.assign(base, { planId: plan.id, planName: plan.name, days: plan.days, amount: plan.price, planRevealLimit: plan.revealLimit, planMaxAds: plan.maxAds, planCredits: plan.featuredCredits })
       }
 
       const key = await refKey(parsed.method, parsed.reference)
@@ -67,6 +67,32 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
         throw e
       }
       return json({ id, amount: base.amount, status: 'pending' })
+    }
+
+    if (body.action === 'redeem') { // spend one of the plan's free featured periods on one of my own ads (no admin step: the plan was already paid for and approved)
+      const promo = await loadPromo(env)
+      if (!promo.enabled) throw new HttpError(503, 'promo-off', 'الدفع للإعلانات المميزة والباقات متوقف مؤقتًا')
+      if (!promo.featured.enabled) throw new HttpError(400, 'featured-off', 'الإعلانات المميزة متوقفة حاليًا')
+      const unitId = typeof body.unitId === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(body.unitId) ? body.unitId : ''
+      if (!unitId) throw new HttpError(400, 'bad-request', 'الإعلان غير صحيح')
+      const me = await getDocument(env, `users/${user.uid}`)
+      const plan = activePlan(me?.data)
+      if (!me || !plan) throw new HttpError(400, 'no-plan', 'مفيش باقة سارية')
+      if (plan.creditsLeft < 1) throw new HttpError(400, 'no-credit', 'خلّصت التمييزات المجانية في باقتك')
+      const unit = await getDocument(env, `units/${unitId}`)
+      if (!unit || unit.data.ownerId !== user.uid) throw new HttpError(404, 'not-found', 'الإعلان غير موجود في حسابك')
+      if (unit.data.status !== 'active' || isExpiredDate(unit.data.expiresAt)) throw new HttpError(400, 'not-active', 'الإعلان لازم يكون منشور وساري عشان تميّزه')
+      const now = new Date()
+      const current = unit.data.featuredUntil instanceof Date && unit.data.featuredUntil.getTime() > now.getTime() ? unit.data.featuredUntil : null
+      const until = extendUntil(current, promo.featured.days, now)
+      const scope = current && unit.data.featuredScope === 'all' ? 'all' : 'gov' // a credit buys the governorate placement, and never lowers a wider one already running
+      const auditId = newId()
+      await commitGuarded(env, [
+        { kind: 'upsert', path: `users/${user.uid}`, data: { plan: { ...(me.data.plan as Record<string, unknown>), creditsLeft: plan.creditsLeft - 1 } } },
+        { kind: 'upsert', path: `units/${unitId}`, data: { featuredUntil: until, featuredScope: scope } },
+        { kind: 'create', path: `promoRequests/${auditId}`, data: { uid: user.uid, userName: String(me.data.displayName ?? ''), userEmail: String(me.data.email ?? ''), kind: 'featured', unitId, unitTitle: String(unit.data.title ?? '').slice(0, 120), scope, days: promo.featured.days, amount: 0, method: 'credit', reference: `plan-credit:${plan.id}`, status: 'approved', createdAt: now, decidedAt: now, decidedBy: 'plan-credit', note: '' } },
+      ], { [`users/${user.uid}`]: me.updateTime })
+      return json({ ok: true, featuredUntil: until.toISOString(), creditsLeft: plan.creditsLeft - 1 })
     }
 
     // ---------- admin ----------
@@ -115,7 +141,9 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
         if (!owner) throw new HttpError(404, 'user-gone', 'الحساب اتحذف. ارفض الطلب')
         const cur = activePlan(owner.data, now)
         const until = extendUntil(cur && cur.id === d.planId ? cur.until : null, days, now)
-        const plan = { id: String(d.planId ?? ''), name: String(d.planName ?? ''), until, revealLimit: Math.max(1, Number(d.planRevealLimit) || 1), maxAds: Math.max(0, Number(d.planMaxAds) || 0) }
+        // Included free featured periods: a renewal of the same plan ADDS to what is left; a different plan starts fresh.
+        const credits = Math.max(0, Math.floor(Number(d.planCredits) || 0)) + (cur && cur.id === d.planId ? cur.creditsLeft : 0)
+        const plan = { id: String(d.planId ?? ''), name: String(d.planName ?? ''), until, revealLimit: Math.max(1, Number(d.planRevealLimit) || 1), maxAds: Math.max(0, Number(d.planMaxAds) || 0), creditsLeft: credits }
         writes.push({ kind: 'upsert', path: `users/${uid}`, data: { plan } })
         // The "verified" badge on the member's ads follows the plan period (the page checks the date, so expiry needs no job).
         const units = await runQuery(env, { collection: 'units', where: [{ field: 'ownerId', op: 'EQUAL', value: uid }], limit: 300 })

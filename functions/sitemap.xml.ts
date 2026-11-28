@@ -8,7 +8,7 @@ import { cloudinaryUrl, escapeHtml, isExpiredDate } from './_lib/logic'
 import { GOVS, listingsFor, newestDay } from './_lib/seo'
 import { fromWire } from './_lib/wire'
 
-const STATIC = ['/', '/search', '/about', '/terms', '/privacy', '/safety', '/contact']
+const STATIC = ['/', '/search', '/features', '/about', '/terms', '/privacy', '/safety', '/contact']
 interface Entry { loc: string; lastmod?: string; images?: string[] }
 
 /**

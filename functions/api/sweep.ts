@@ -4,6 +4,7 @@ import { siteUrl } from '../_lib/env'
 import { commit, getDocument, runQuery, type Doc, type Write } from '../_lib/firestore'
 import { errorResponse, json, requireUser } from '../_lib/http'
 import { closeLeaseWrites } from '../_lib/leasing'
+import { purgeExpiredIdImages } from '../_lib/idretention'
 import { cairoDayKey } from '../_lib/logic'
 import { daysBetween } from '../_lib/rent'
 import { notifyWrite, paySettings } from '../_lib/rentdb'
@@ -93,6 +94,8 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     // The query windows are capped (500). If one is full, some leases may never be seen: say so loudly instead of silently ignoring them.
     const truncated = active.length >= 500
     if (truncated) console.error('sweep: 500 active leases returned, some may be skipped. Time to move to a paid plan or page this query.')
-    return json({ ok: true, today, more, truncated, used, ...stats })
+    // Optional retention for ID photos (only when the admin set a number of months); a few per run, within the subrequest budget.
+    const idPurged = await purgeExpiredIdImages(env, new Date(), Math.min(10, Math.floor((BUDGET - used - 3) / 1)))
+    return json({ ok: true, today, more, truncated, used, idPurged, ...stats })
   } catch (e) { return errorResponse(e) }
 }
