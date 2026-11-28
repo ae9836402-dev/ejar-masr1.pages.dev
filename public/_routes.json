@@ -1,1 +1,1 @@
-{"version": 1, "include": ["/", "/api/*", "/blog", "/blog/*", "/indexnow-key.txt", "/llms.txt", "/rent/*", "/robots.txt", "/sitemap.xml", "/unit/*"], "exclude": []}
+{"version": 1, "include": ["/", "/api/*", "/blog", "/blog/*", "/features", "/indexnow-key.txt", "/llms.txt", "/rent/*", "/robots.txt", "/sitemap.xml", "/unit/*"], "exclude": []}

@@ -22,8 +22,12 @@ const PayResult = lazy(() => import('./pages/PayResult'))
 const AdminArticles = lazy(() => import('./pages/AdminArticles'))
 const AdminPayments = lazy(() => import('./pages/AdminPayments'))
 const Promote = lazy(() => import('./pages/Promote'))
+const Features = lazy(() => import('./pages/Features'))
 const AdminPromo = lazy(() => import('./pages/AdminPromo'))
 const AdminIds = lazy(() => import('./pages/AdminIds'))
+const AdminShell = lazy(() => import('./components/AdminShell'))
+const AdminHome = lazy(() => import('./pages/AdminHome'))
+const AdminSystem = lazy(() => import('./pages/AdminSystem'))
 const StaticPage = lazy(() => import('./pages/StaticPage'))
 const NotFound = lazy(() => import('./pages/NotFound'))
 
@@ -49,12 +53,17 @@ export default function App() {
             <Route path="payments-policy" element={<PaymentsPolicy />} />
             <Route path="rentals" element={<RequireAuth><Rentals /></RequireAuth>} />
             <Route path="pay/result" element={<RequireAuth><PayResult /></RequireAuth>} />
-            <Route path="admin" element={<RequireAuth admin><Admin /></RequireAuth>} />
-            <Route path="admin/articles" element={<RequireAuth admin><AdminArticles /></RequireAuth>} />
             <Route path="plans" element={<Promote />} />
-            <Route path="admin/ids" element={<RequireAuth admin><AdminIds /></RequireAuth>} />
-            <Route path="admin/promo" element={<RequireAuth admin><AdminPromo /></RequireAuth>} />
-            <Route path="admin/payments" element={<RequireAuth admin><AdminPayments /></RequireAuth>} />
+            <Route path="features" element={<Features />} />
+            <Route path="admin" element={<RequireAuth admin><AdminShell /></RequireAuth>}>
+              <Route index element={<AdminHome />} />
+              <Route path="manage" element={<Admin />} />
+              <Route path="articles" element={<AdminArticles />} />
+              <Route path="ids" element={<AdminIds />} />
+              <Route path="promo" element={<AdminPromo />} />
+              <Route path="payments" element={<AdminPayments />} />
+              <Route path="system" element={<AdminSystem />} />
+            </Route>
             {(['about', 'terms', 'privacy', 'safety', 'contact'] as const).map((p) => <Route key={p} path={p} element={<StaticPage page={p} />} />)}
             <Route path="*" element={<NotFound />} />
           </Route>

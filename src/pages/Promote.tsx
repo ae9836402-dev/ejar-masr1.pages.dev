@@ -21,7 +21,7 @@ const money = (n: number): string => `${fmtNum(n)} جنيه`
 
 export default function Promote() {
   usePageMeta({ title: 'إعلانات مميزة وباقات السماسرة', description: 'ميّز إعلانك ليظهر أول القائمة، أو اشترك في باقة سمسار بحد كشف أعلى وإعلانات أكتر وشارة موثّق.' })
-  const { user, profile } = useAuth()
+  const { user, profile, refreshProfile } = useAuth()
   const toast = useToast()
   const [params] = useSearchParams()
   const [promo, setPromo] = useState<PromoSettings | null>(null)
@@ -53,6 +53,12 @@ export default function Promote() {
   const closed = !p.enabled
   const current = activePlanOf(profile)
 
+  async function redeem() {
+    if (!unitId) { toast.err('اختار الإعلان الأول'); return }
+    setBusy(true)
+    try { await apiPost('/api/promo', { action: 'redeem', unitId }); toast.ok('اتفعّل التمييز على إعلانك'); await refreshProfile(); await load() } catch (e) { toast.err(e instanceof ApiError ? e.message : 'حصل خطأ، حاول مرة تانية') } finally { setBusy(false) }
+  }
+
   async function submit(ev: React.FormEvent) {
     ev.preventDefault()
     if (!user) return
@@ -73,6 +79,14 @@ export default function Promote() {
       <h1 className="font-display text-3xl">إعلانات مميزة وباقات السماسرة</h1>
       <p className="mt-2 text-mute">الدفع بتحويل فودافون كاش أو إنستاباي، من غير بطاقة ولا بوابة دفع. بعد التحويل ابعت رقم العملية وإحنا نفعّل بعد المراجعة.</p>
       {current && <p className="mt-3 rounded-field border border-nile p-3 text-sm">باقتك الحالية: <strong>{current.name}</strong> · تنتهي {fmtDate(current.until)} · كشف أرقام لحد {fmtNum(current.revealLimit)} يوميًا · {current.maxAds === 0 ? 'إعلانات بلا حد' : `لحد ${fmtNum(current.maxAds)} إعلان نشط`}</p>}
+
+      {current && (current.creditsLeft ?? 0) > 0 && p.enabled && p.featured.enabled && (
+        <div className="panel mt-4 flex flex-wrap items-center gap-3 border-nile p-4">
+          <p className="min-w-0 flex-1 text-sm">باقتك فيها <b>{fmtNum(current.creditsLeft ?? 0)}</b> تمييز مجاني (أول إعلانات المحافظة لمدة {p.featured.days} أيام). استخدمه على أي إعلان منشور عندك، من غير دفع.</p>
+          <select className="field !w-auto max-w-[16rem]" aria-label="الإعلان" value={unitId} onChange={(e) => setUnitId(e.target.value)}>{units.map((u) => <option key={u.id} value={u.id}>{u.title}</option>)}</select>
+          <button type="button" className="btn-primary" disabled={busy || !unitId} onClick={() => void redeem()}>استخدم تمييز مجاني</button>
+        </div>
+      )}
 
       <section className="mt-8">
         <h2 className="text-xl font-semibold">⭐ ميّز إعلانك</h2>
@@ -97,6 +111,7 @@ export default function Promote() {
                 <li>كشف بيانات التواصل لحد {fmtNum(pl.revealLimit)} إعلان في اليوم</li>
                 <li>{pl.maxAds === 0 ? 'إعلانات نشطة بلا حد' : `لحد ${fmtNum(pl.maxAds)} إعلان نشط`}</li>
                 <li>شارة «موثّق» على كل إعلاناتك</li>
+                {pl.featuredCredits > 0 && <li>{fmtNum(pl.featuredCredits)} تمييز مجاني (أول المحافظة) كل فترة</li>}
               </ul>
             </button>
           ))}

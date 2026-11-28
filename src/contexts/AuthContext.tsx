@@ -41,7 +41,7 @@ function toProfile(uid: string, d: Record<string, unknown>): UserDoc {
 function planOf(v: unknown): UserDoc['plan'] {
   const p = (v ?? null) as Record<string, unknown> | null
   if (!p || !(p.until instanceof Timestamp)) return null
-  return { id: String(p.id ?? ''), name: String(p.name ?? ''), until: p.until.toDate(), revealLimit: Number(p.revealLimit) || 0, maxAds: Number(p.maxAds) || 0 }
+  return { id: String(p.id ?? ''), name: String(p.name ?? ''), until: p.until.toDate(), revealLimit: Number(p.revealLimit) || 0, maxAds: Number(p.maxAds) || 0, creditsLeft: Math.max(0, Math.floor(Number(p.creditsLeft) || 0)) }
 }
 
 async function ensureProfile(u: User): Promise<UserDoc> {

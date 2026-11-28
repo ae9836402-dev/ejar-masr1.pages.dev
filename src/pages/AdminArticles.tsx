@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { newBankTopics } from '../../functions/_lib/keywordBank'
 import { MAX_TOPICS } from '../../functions/_lib/topicLimits'
+import type { EditorSettings } from '../../functions/_lib/articleEditor'
+import { ArticleEditorSettings } from '../components/ArticleEditorSettings'
 import { useSettings } from '../contexts/SettingsContext'
 import { useToast } from '../contexts/ToastContext'
 import { apiPost } from '../lib/api'
@@ -20,7 +22,7 @@ interface Article {
 interface Form { title: string; slug: string; description: string; primary: string; secondary: string; govId: string; typeId: string; body: string; videoUrl: string; videoTitle: string; cover: Img | null; images: Img[]; faq: Faq[]; topic: string }
 interface PlanItem { title: string; primary: string; secondary: string[]; angle: string; audience: string }
 interface Topic { topic: string; govId: string; typeId: string }
-interface AutoSettings { enabled: boolean; mode: 'review' | 'auto'; everyHours: number; dailyMax: number; minScore: number; topics: Topic[]; cursor: number; loop: boolean; lastRunAt: number | null; lastResult: string; lastError: string; todayCount: number }
+interface AutoSettings { editor: EditorSettings; enabled: boolean; mode: 'review' | 'auto'; everyHours: number; dailyMax: number; minScore: number; topics: Topic[]; cursor: number; loop: boolean; lastRunAt: number | null; lastResult: string; lastError: string; todayCount: number }
 interface SaveResult { slug: string; score: number; issues: string[]; similarTo: { slug: string; score: number } | null }
 
 const adm = <T,>(action: string, extra: Record<string, unknown> = {}) => apiPost<T>('/api/articles-admin', { action, ...extra })
@@ -164,6 +166,7 @@ function GenerateTab({ onOpen }: { onOpen: (slug: string | null) => void }) {
   const [sugg, setSugg] = useState<string[]>([])
   const [rows, setRows] = useState<Row[]>([])
   const [busy, setBusy] = useState<'' | 'suggest' | 'plan' | 'write'>('')
+  const [instructions, setInstructions] = useState('')
   const stop = useRef(false)
 
   async function suggest() {
@@ -188,7 +191,7 @@ function GenerateTab({ onOpen }: { onOpen: (slug: string | null) => void }) {
       if (stop.current) break
       patch(i, { state: 'run', msg: '' })
       try {
-        const r = await gen<{ slug: string; score: number; issues: string[] }>({ action: 'write', topic, govId, typeId, item: { title: it.title, primary: it.primary, secondary: it.secondary, angle: it.angle, audience: it.audience } })
+        const r = await gen<{ slug: string; score: number; issues: string[] }>({ action: 'write', topic, govId, typeId, item: { title: it.title, primary: it.primary, secondary: it.secondary, angle: it.angle, audience: it.audience }, instructions })
         patch(i, { state: 'done', slug: r.slug, score: r.score, issues: r.issues })
       } catch (e) { patch(i, { state: 'fail', msg: errText(e) }) }
     }
@@ -208,6 +211,7 @@ function GenerateTab({ onOpen }: { onOpen: (slug: string | null) => void }) {
         {sugg.length > 0 && <div className="flex flex-wrap gap-2" aria-label="اقتراحات بحث حقيقية">{sugg.map((s) => <button key={s} type="button" className="chip hover:border-nile" onClick={() => setTopic(s)}>{s}</button>)}</div>}
         <GovTypePick govId={govId} typeId={typeId} onGov={setGovId} onType={setTypeId} />
         <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="بنود لهذه المقالات بس (اختياري)" hint="بتتضاف على البنود العامة في تبويب الأتمتة. كل سطر بند."><textarea className="field min-h-20" value={instructions} maxLength={1500} onChange={(e) => setInstructions(e.target.value)} /></Field>
           <Field label="عدد المقالات للموضوع ده"><select className="field" value={count} onChange={(e) => setCount(Number(e.target.value))}>{[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{n}</option>)}</select></Field>
           <Field label="طريقة التنويع">
             <select className="field" value={mode} onChange={(e) => setMode(e.target.value as 'angles' | 'tweaks')}>
@@ -508,6 +512,8 @@ function AutoTab() {
         </div>
         <p className="text-sm text-mute">«كل 24 ساعة» = مقال يوميًا. الموقع بيمشي على قائمة المواضيع تحت بالترتيب، وبيدور تاني من الأول لما تخلص (بزاوية مختلفة كل لفة).</p>
       </div>
+
+      <ArticleEditorSettings value={s.editor} onChange={(v) => up('editor', v)} />
 
       <fieldset className="panel space-y-3 p-5">
         <legend className="px-1 font-display">قائمة العناوين ({s.topics.length}/{MAX_TOPICS})</legend>

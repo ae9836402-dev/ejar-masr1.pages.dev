@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import {
   Timestamp, type Query, collection, doc, getCountFromServer, getDocs, limit, orderBy, query, updateDoc, where, writeBatch,
 } from 'firebase/firestore'
@@ -25,18 +25,12 @@ const newId = (p: string) => `${p}_${Date.now().toString(36)}${Math.random().toS
 
 export default function Admin() {
   usePageMeta({ title: ar.admin.title, noindex: true })
-  const [tab, setTab] = useState<Tab>('stats')
+  const [params] = useSearchParams()
+  const q = params.get('tab') as Tab | null
+  const tab: Tab = q && TABS.includes(q) ? q : 'stats' // the sidebar (AdminShell) picks the tab through the URL
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="font-display text-3xl">{ar.admin.title}</h1>
-        <div className="flex flex-wrap gap-2">
-          <Link to="/admin/articles" className="btn-primary">{ar.nav.adminArticles} (المدونة والسيو)</Link>
-        </div>
-      </div>
-      <div role="tablist" className="mt-5 flex flex-wrap gap-2">
-        {TABS.map((k) => <button key={k} role="tab" aria-selected={tab === k} type="button" onClick={() => setTab(k)} className={`btn ${tab === k ? 'bg-nile-dark text-white dark:text-paper' : 'border border-line bg-surface'}`}>{ar.admin.tabs[k]}</button>)}
-      </div>
+    <div>
+      <h1 className="font-display text-3xl">{ar.admin.tabs[tab]}</h1>
       <div className="mt-6">
         {tab === 'stats' && <StatsTab />}
         {tab === 'settings' && <SettingsTab />}

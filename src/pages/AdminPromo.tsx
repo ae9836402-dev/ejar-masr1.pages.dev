@@ -129,17 +129,18 @@ function SettingsForm() {
       <section className="panel space-y-4 p-5">
         <h2 className="text-lg font-semibold">باقات السماسرة</h2>
         {s.plans.map((p, i) => (
-          <div key={i} className="grid gap-3 rounded-field border border-line p-3 sm:grid-cols-6">
+          <div key={i} className="grid gap-3 rounded-field border border-line p-3 sm:grid-cols-7">
             <Field label="المعرّف (إنجليزي)"><input className="field" dir="ltr" value={p.id} onChange={(e) => upPlan(i, { id: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') })} /></Field>
             <Field label="الاسم"><input className="field" value={p.name} onChange={(e) => upPlan(i, { name: e.target.value })} /></Field>
             <Field label="السعر">{numInput(p.price, (v) => upPlan(i, { price: v }))}</Field>
             <Field label="المدة (يوم)">{numInput(p.days, (v) => upPlan(i, { days: v }))}</Field>
             <Field label="كشف/يوم">{numInput(p.revealLimit, (v) => upPlan(i, { revealLimit: v }))}</Field>
             <Field label="إعلانات (0=بلا حد)">{numInput(p.maxAds, (v) => upPlan(i, { maxAds: v }))}</Field>
-            <button type="button" className="btn-ghost !py-1 text-danger sm:col-span-6" onClick={() => set({ plans: s.plans.filter((_, k) => k !== i) })}>حذف الباقة</button>
+            <Field label="تمييز مجاني/فترة">{numInput(p.featuredCredits, (v) => upPlan(i, { featuredCredits: v }))}</Field>
+            <button type="button" className="btn-ghost !py-1 text-danger sm:col-span-7" onClick={() => set({ plans: s.plans.filter((_, k) => k !== i) })}>حذف الباقة</button>
           </div>
         ))}
-        {s.plans.length < 6 && <button type="button" className="btn-ghost" onClick={() => set({ plans: [...s.plans, { id: `plan-${s.plans.length + 1}`, name: 'باقة جديدة', price: 500, days: 30, revealLimit: 100, maxAds: 50 }] })}>+ باقة</button>}
+        {s.plans.length < 6 && <button type="button" className="btn-ghost" onClick={() => set({ plans: [...s.plans, { id: `plan-${s.plans.length + 1}`, name: 'باقة جديدة', price: 500, days: 30, revealLimit: 100, maxAds: 50, featuredCredits: 0 }] })}>+ باقة</button>}
         <p className="text-xs text-mute">تعديل باقة لا يغيّر اللي اشترك فيها قبل كده: حدودها بتتحفظ وقت التفعيل.</p>
       </section>
       <button type="button" className="btn-primary" disabled={busy} onClick={() => void save()}>{busy ? '...' : 'حفظ'}</button>

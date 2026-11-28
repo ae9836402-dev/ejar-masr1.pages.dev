@@ -47,10 +47,6 @@ export function Layout() {
                 <NavLink to="/dashboard" className={linkCls}>{ar.nav.dashboard}</NavLink>
                 {isAdmin && <NavLink to="/admin" className={linkCls}>{ar.nav.admin}</NavLink>}
                 <NavLink to="/plans" className={linkCls}>الباقات</NavLink>
-                {isAdmin && <NavLink to="/admin/promo" className={linkCls}>الترويج</NavLink>}
-                {isAdmin && <NavLink to="/admin/ids" className={linkCls}>الهويات</NavLink>}
-                {isAdmin && <NavLink to="/admin/payments" className={linkCls}>{rt.adminPayments}</NavLink>}
-                {isAdmin && <NavLink to="/admin/articles" className={linkCls}>{ar.nav.adminArticles}</NavLink>}
                 <button type="button" className="btn-ghost" onClick={() => void signOut()}>{ar.nav.logout}</button>
               </div>
             ) : (
@@ -72,10 +68,6 @@ export function Layout() {
                 <NavLink to="/dashboard" className={linkCls} onClick={close}>{ar.nav.dashboard}</NavLink>
                 {isAdmin && <NavLink to="/admin" className={linkCls} onClick={close}>{ar.nav.admin}</NavLink>}
                 <NavLink to="/plans" className={linkCls} onClick={close}>الباقات</NavLink>
-                {isAdmin && <NavLink to="/admin/promo" className={linkCls} onClick={close}>الترويج</NavLink>}
-                {isAdmin && <NavLink to="/admin/ids" className={linkCls} onClick={close}>الهويات</NavLink>}
-                {isAdmin && <NavLink to="/admin/payments" className={linkCls} onClick={close}>{rt.adminPayments}</NavLink>}
-                {isAdmin && <NavLink to="/admin/articles" className={linkCls} onClick={close}>{ar.nav.adminArticles}</NavLink>}
                 <button type="button" className="rounded-field px-3 py-2 text-start hover:bg-line/60" onClick={() => { close(); void signOut() }}>{ar.nav.logout}</button>
               </>
             ) : (
@@ -92,6 +84,7 @@ export function Layout() {
           <nav className="flex flex-wrap gap-x-5 gap-y-2" aria-label="روابط الموقع">
             <a href="/blog">{ar.footer.blog}</a>
             <Link to="/about">{ar.footer.about}</Link>
+            <Link to="/features">مميزات الموقع</Link>
             <Link to="/terms">{ar.footer.terms}</Link>
             {policy?.visible !== false && <Link to="/payments-policy">سياسة الإيجار والدفع</Link>}
             <Link to="/privacy">{ar.footer.privacy}</Link>

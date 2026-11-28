@@ -20,7 +20,7 @@ export interface UserDoc {
   badgeHidden?: boolean
   createdAt: Date | null
   /** Paid broker plan (set by the server when an admin approves a payment). */
-  plan?: { id: string; name: string; until: Date; revealLimit: number; maxAds: number } | null
+  plan?: { id: string; name: string; until: Date; revealLimit: number; maxAds: number; creditsLeft?: number } | null
 }
 
 export interface Option { id: string; label: string; plural?: string }
